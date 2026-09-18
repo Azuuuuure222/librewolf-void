@@ -73,6 +73,11 @@ jobs:
           path: void-packages
       - name: copy librewolf into srcpkgs
         run: cp -rv librewolf/srcpkgs/librewolf void-packages/srcpkgs
+      - name: restore verified LibreWolf source cache
+        uses: actions/cache@v4
+        with:
+          path: void-packages/hostdir/distfiles
+          key: librewolf-source-${{ hashFiles('librewolf/srcpkgs/librewolf/template') }}
       - name: prefetch and verify LibreWolf source
         working-directory: void-packages
         run: |
@@ -84,6 +89,11 @@ jobs:
           filename="librewolf-${version}-${revision}.source.tar.gz"
           url="https://librewolf.dev/api/packages/librewolf/generic/librewolf-source/${version}-${revision}/${filename}"
           mkdir -p hostdir/distfiles
+          if [ -f "hostdir/distfiles/${filename}" ] && printf '%s  %s\n' "$checksum" "hostdir/distfiles/${filename}" | sha256sum -c -; then
+            echo "Using verified cached source archive: ${filename}"
+            exit 0
+          fi
+          rm -f "hostdir/distfiles/${filename}"
           for attempt in 1 2 3 4 5; do
             rm -f "hostdir/distfiles/${filename}.part"
             if curl -fsSL --retry 2 --retry-all-errors --retry-delay 5 -o "hostdir/distfiles/${filename}.part" "$url"; then
