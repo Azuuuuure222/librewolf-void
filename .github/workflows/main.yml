@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: librewolf-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -33,6 +37,7 @@ jobs:
   build:
     needs: release
     if: always() && (needs.release.result == 'success' || needs.release.result == 'skipped')
+    timeout-minutes: 180
     strategy:
       max-parallel: 4
       matrix:
@@ -68,6 +73,33 @@ jobs:
           path: void-packages
       - name: copy librewolf into srcpkgs
         run: cp -rv librewolf/srcpkgs/librewolf void-packages/srcpkgs
+      - name: prefetch and verify LibreWolf source
+        working-directory: void-packages
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version=//p' srcpkgs/librewolf/template)
+          revision=$(sed -n 's/^_rev=//p' srcpkgs/librewolf/template)
+          checksum=$(sed -n 's/^checksum=//p' srcpkgs/librewolf/template)
+          : "${version:?}" "${revision:?}" "${checksum:?}"
+          filename="librewolf-${version}-${revision}.source.tar.gz"
+          url="https://librewolf.dev/api/packages/librewolf/generic/librewolf-source/${version}-${revision}/${filename}"
+          mkdir -p hostdir/distfiles
+          for attempt in 1 2 3 4 5; do
+            rm -f "hostdir/distfiles/${filename}.part"
+            if curl -fsSL --retry 2 --retry-all-errors --retry-delay 5 -o "hostdir/distfiles/${filename}.part" "$url"; then
+              if printf '%s  %s\n' "$checksum" "hostdir/distfiles/${filename}.part" | sha256sum -c -; then
+                mv "hostdir/distfiles/${filename}.part" "hostdir/distfiles/${filename}"
+                exit 0
+              fi
+              echo "Downloaded source failed checksum verification; refusing to build it." >&2
+            else
+              echo "Source download attempt ${attempt}/5 failed; upstream may be temporarily unavailable." >&2
+            fi
+            sleep $((attempt * 15))
+          done
+          echo "Unable to fetch the verified LibreWolf source archive after 5 attempts: ${url}" >&2
+          echo "The upstream release asset currently reports 'seeker can't seek' when unavailable." >&2
+          exit 1
       - name: prepare xbps-static
         run: |
           set -euo pipefail
@@ -83,12 +115,21 @@ jobs:
           export PATH="/opt/xbps/usr/bin/:$PATH"
           cd void-packages
           if [[ "${{ matrix.host }}" == "${{ matrix.target }}" ]]; then
-            ./xbps-src -A ${{ matrix.host }} binary-bootstrap
-            ./xbps-src pkg -j4 -A ${{ matrix.host }} librewolf
+            ./xbps-src -A "${{ matrix.host }}" binary-bootstrap
+            for attempt in 1 2 3; do
+              ./xbps-src pkg -j4 -A "${{ matrix.host }}" librewolf && exit 0
+              echo "Package build attempt ${attempt}/3 failed; retrying." >&2
+              sleep $((attempt * 15))
+            done
           else
-            ./xbps-src -a ${{ matrix.target }} -A ${{ matrix.host }} binary-bootstrap
-            ./xbps-src pkg -j4 -a ${{ matrix.target }} -A ${{ matrix.host }} librewolf
+            ./xbps-src -a "${{ matrix.target }}" -A "${{ matrix.host }}" binary-bootstrap
+            for attempt in 1 2 3; do
+              ./xbps-src pkg -j4 -a "${{ matrix.target }}" -A "${{ matrix.host }}" librewolf && exit 0
+              echo "Package build attempt ${attempt}/3 failed; retrying." >&2
+              sleep $((attempt * 15))
+            done
           fi
+          exit 1
       - name: sign
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         env:
