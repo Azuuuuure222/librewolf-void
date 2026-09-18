@@ -80,12 +80,12 @@ post_patch() {
 
 do_build() {
 	export AS="${CC}"
-	export CFLAGS="-O2 -march=skylake -mtune=skylake"
-	export CXXFLAGS="-O2 -march=skylake -mtune=skylake"
+	export CFLAGS="${CFLAGS:-O2} -march=skylake -mtune=skylake"
+	export CXXFLAGS="${CXXFLAGS:-O2} -march=skylake -mtune=skylake"
 	export RUSTFLAGS="${RUSTFLAGS:+${RUSTFLAGS} }-C target-cpu=skylake"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
-	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf"
+	export LDFLAGS="${LDFLAGS:+${LDFLAGS} }-Wl,-rpath=/usr/lib/librewolf"
 	# export LDFLAGS+="-Wl,--threads=${XBPS_MAKEJOBS}"
 
 	if [ "$build_option_clang" ]; then

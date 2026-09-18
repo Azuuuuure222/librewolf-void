@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - name: checkout librewolf-void
@@ -20,6 +21,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           version=$(sed -n 's/^version=//p' srcpkgs/librewolf/template)
           _rev=$(sed -n 's/^_rev=//p' srcpkgs/librewolf/template)
           : "${version:?}" "${_rev:?}"
@@ -30,6 +32,7 @@ jobs:
             --latest=false
   build:
     needs: release
+    if: always() && (needs.release.result == 'success' || needs.release.result == 'skipped')
     strategy:
       max-parallel: 4
       matrix:
@@ -55,7 +58,7 @@ jobs:
       - name: checkout librewolf-void
         uses: actions/checkout@v4
         with:
-          ref: master
+          ref: ${{ github.ref }}
           path: librewolf
       - name: checkout void-packages
         uses: actions/checkout@v4
@@ -67,14 +70,16 @@ jobs:
         run: cp -rv librewolf/srcpkgs/librewolf void-packages/srcpkgs
       - name: prepare xbps-static
         run: |
+          set -euo pipefail
           mkdir -p /opt/xbps
-          curl -LO https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
+          curl -fsSLo xbps-static-latest.x86_64-musl.tar.xz https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
           tar xvf xbps-static-latest.x86_64-musl.tar.xz -C /opt/xbps
           rm xbps-static-latest.x86_64-musl.tar.xz
       - name: build
         env:
           XBPS_TARGET_ARCH: ${{ matrix.target }}
         run: |
+          set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
           cd void-packages
           if [[ "${{ matrix.host }}" == "${{ matrix.target }}" ]]; then
@@ -85,29 +90,42 @@ jobs:
             ./xbps-src pkg -j4 -a ${{ matrix.target }} -A ${{ matrix.host }} librewolf
           fi
       - name: sign
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         env:
           XBPS_PASSPHRASE: ${{ secrets.SIGN_PASS }}
           XBPS_TARGET_ARCH: ${{ matrix.target }}
         working-directory: void-packages/hostdir/binpkgs/
         run: |
+          set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
           xbps-rindex -r $PWD
           xbps-rindex -s --signedby "${{ vars.SIGNEDBY }}" --privkey <(printf '%s' "${{ secrets.PRIV_KEY }}") $PWD
           xbps-rindex -S --privkey <(printf '%s' "${{ secrets.PRIV_KEY }}") *.xbps
           xbps-rindex -c $PWD
       - name: checksum
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         working-directory: void-packages/hostdir/binpkgs/
         run: |
+          set -euo pipefail
           sha256sum $(echo *.xbps)
           sha512sum $(echo *.xbps)
       - name: upload assets
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         working-directory: void-packages/hostdir/binpkgs/
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh release upload "${{ github.ref_name }}" *.xbps *.xbps.sig2 *-repodata --clobber
+      - name: upload manual build artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: librewolf-x86_64-glibc-skylake
+          path: void-packages/hostdir/binpkgs/*.xbps
+          if-no-files-found: error
   latest:
     needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - name: mark release as latest
