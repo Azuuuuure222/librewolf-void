@@ -13,6 +13,7 @@ distfiles="https://librewolf.dev/api/packages/librewolf/generic/librewolf-source
 checksum=ad155e1bd37e279f3b8a2b7ebc53e5ae2f5e3d21e028b00aaac905d96b1edd3d
 
 lib32disabled=yes
+archs="x86_64"
 
 _llvmver=22
 hostmakedepends="unzip zip pkg-config perl python3 yasm rust
@@ -76,10 +77,12 @@ post_patch() {
 	fi
 }
 
+
 do_build() {
 	export AS="${CC}"
-	export CFLAGS="-O2"
-	export CXXFLAGS="-O2"
+	export CFLAGS="-O2 -march=skylake -mtune=skylake"
+	export CXXFLAGS="-O2 -march=skylake -mtune=skylake"
+	export RUSTFLAGS="${RUSTFLAGS:+${RUSTFLAGS} }-C target-cpu=skylake"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
 	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf"
