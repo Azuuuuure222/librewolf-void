@@ -156,6 +156,6 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: librewolf-x86_64-glibc-i3-6100U
+          name: librewolf-x86_64-glibc-skylake
           path: void-packages/hostdir/binpkgs/*.xbps
           if-no-files-found: error
