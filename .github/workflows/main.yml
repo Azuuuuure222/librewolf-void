@@ -92,18 +92,19 @@ jobs:
           }
           verify 2>/dev/null && exit 0 || rm -f "hostdir/distfiles/$filename"
 
-          for attempt in 1 2 3 4 5; do
-            if curl -fsSL --retry 2 --retry-all-errors --retry-delay 5 \
+          for attempt in 1 2; do
+            if curl -fsSL --connect-timeout 15 --max-time 300 \
+              --speed-time 60 --speed-limit 1024 \
               -o "hostdir/distfiles/$filename.part" "$url" && \
               mv "hostdir/distfiles/$filename.part" "hostdir/distfiles/$filename" && \
               verify; then
               exit 0
             fi
             rm -f "hostdir/distfiles/$filename" "hostdir/distfiles/$filename.part"
-            echo "Source fetch attempt ${attempt}/5 failed; retrying." >&2
-            sleep $((attempt * 15))
+            echo "Source fetch attempt ${attempt}/2 failed; retrying." >&2
+            sleep 5
           done
-          echo "Unable to fetch a verified LibreWolf source archive: $url" >&2
+          echo "Unable to fetch a verified LibreWolf source archive after 2 attempts: $url" >&2
           exit 1
 
       - name: prepare xbps

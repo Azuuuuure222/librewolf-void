@@ -13,7 +13,7 @@ maintainer="index <index@mailbox.org>"
 license="GPL-3.0-only AND LGPL-2.1-only AND LGPL-3.0-only AND MPL-2.0"
 homepage="https://librewolf.dev"
 distfiles="https://librewolf.dev/api/packages/librewolf/generic/librewolf-source/${version}-${_rev}/${pkgname}-${version}-${_rev}.source.tar.gz"
-checksum=ad155e1bd37e279f3b8a2b7ebc53e5ae2f5e3d21e028b00aaac905d96b1edd3d
+checksum=63d5d69c4f458e1a26ce0974f3ce43c46345d912452c1562157150f71117f3a9
 
 lib32disabled=yes
 archs="x86_64"
