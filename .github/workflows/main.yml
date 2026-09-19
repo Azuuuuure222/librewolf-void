@@ -3,7 +3,7 @@ name: build
 on:
   push:
     tags:
-      - '*'
+      - "*"
   workflow_dispatch:
 
 permissions:
@@ -14,71 +14,68 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    env:
+      XBPS_TARGET_ARCH: x86_64
+
     steps:
-      - name: checkout librewolf-void
+      - name: checkout librewolf
         uses: actions/checkout@v4
+        with:
+          path: librewolf
+
       - name: create release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           version=$(sed -n 's/^version=//p' srcpkgs/librewolf/template)
-          _rev=$(sed -n 's/^_rev=//p' srcpkgs/librewolf/template)
-          : "${version:?}" "${_rev:?}"
-          gh release view "$TAG" >/dev/null 2>&1 && exit 0
-          gh release create "$TAG" \
-            --title "librewolf $TAG" \
-            --notes "https://librewolf.dev/librewolf/source/releases/tag/${version}-${_rev}" \
-            --latest=false
-  build:
-    needs: release
-    if: always() && (needs.release.result == 'success' || needs.release.result == 'skipped')
-    timeout-minutes: 180
-    strategy:
-      max-parallel: 4
-      matrix:
-        include:
-          - { host: x86_64, target: x86_64 }
-    runs-on: ubuntu-22.04
-    steps:
+          revision=$(sed -n 's/^_rev=//p' srcpkgs/librewolf/template)
+          : "${version:?}" "${revision:?}"
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" \
+              --title "librewolf $TAG" \
+              --notes "https://librewolf.dev/librewolf/source/releases/tag/${version}-${revision}" \
+              --latest=false
+
       - name: free space
         run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          sudo rm -rf /opt/hostedtoolcache/
-          sudo rm -rf /usr/local/graalvm/
-          sudo rm -rf /usr/local/share/powershell
-          sudo rm -rf /usr/local/share/chromium
-          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/share/swift \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /usr/local/share/boost \
+            "$AGENT_TOOLSDIRECTORY" \
+            /opt/hostedtoolcache \
+            /usr/local/graalvm \
+            /usr/local/share/powershell \
+            /usr/local/share/chromium \
+            /usr/local/lib/node_modules
           sudo docker image prune --all --force
-      - name: checkout librewolf-void
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-          path: librewolf
+
       - name: checkout void-packages
         uses: actions/checkout@v4
         with:
           repository: void-linux/void-packages
           ref: master
           path: void-packages
-      - name: copy librewolf into srcpkgs
+
+      - name: prepare package
         run: cp -rv librewolf/srcpkgs/librewolf void-packages/srcpkgs
-      - name: restore verified LibreWolf source cache
+
+      - name: restore verified source cache
         uses: actions/cache@v4
         with:
           path: void-packages/hostdir/distfiles
           key: librewolf-source-${{ hashFiles('librewolf/srcpkgs/librewolf/template') }}
-      - name: prefetch and verify LibreWolf source
+
+      - name: fetch and verify source
         working-directory: void-packages
         run: |
           set -euo pipefail
@@ -89,98 +86,75 @@ jobs:
           filename="librewolf-${version}-${revision}.source.tar.gz"
           url="https://librewolf.dev/api/packages/librewolf/generic/librewolf-source/${version}-${revision}/${filename}"
           mkdir -p hostdir/distfiles
-          if [ -f "hostdir/distfiles/${filename}" ] && printf '%s  %s\n' "$checksum" "hostdir/distfiles/${filename}" | sha256sum -c -; then
-            echo "Using verified cached source archive: ${filename}"
-            exit 0
-          fi
-          rm -f "hostdir/distfiles/${filename}"
+
+          verify() {
+            printf '%s  %s\n' "$checksum" "hostdir/distfiles/$filename" | sha256sum -c -
+          }
+          verify 2>/dev/null && exit 0 || rm -f "hostdir/distfiles/$filename"
+
           for attempt in 1 2 3 4 5; do
-            rm -f "hostdir/distfiles/${filename}.part"
-            if curl -fsSL --retry 2 --retry-all-errors --retry-delay 5 -o "hostdir/distfiles/${filename}.part" "$url"; then
-              if printf '%s  %s\n' "$checksum" "hostdir/distfiles/${filename}.part" | sha256sum -c -; then
-                mv "hostdir/distfiles/${filename}.part" "hostdir/distfiles/${filename}"
-                exit 0
-              fi
-              echo "Downloaded source failed checksum verification; refusing to build it." >&2
-            else
-              echo "Source download attempt ${attempt}/5 failed; upstream may be temporarily unavailable." >&2
+            if curl -fsSL --retry 2 --retry-all-errors --retry-delay 5 \
+              -o "hostdir/distfiles/$filename.part" "$url" && \
+              mv "hostdir/distfiles/$filename.part" "hostdir/distfiles/$filename" && \
+              verify; then
+              exit 0
             fi
+            rm -f "hostdir/distfiles/$filename" "hostdir/distfiles/$filename.part"
+            echo "Source fetch attempt ${attempt}/5 failed; retrying." >&2
             sleep $((attempt * 15))
           done
-          echo "Unable to fetch the verified LibreWolf source archive after 5 attempts: ${url}" >&2
-          echo "The upstream release asset currently reports 'seeker can't seek' when unavailable." >&2
+          echo "Unable to fetch a verified LibreWolf source archive: $url" >&2
           exit 1
-      - name: prepare xbps-static
+
+      - name: prepare xbps
         run: |
           set -euo pipefail
           mkdir -p /opt/xbps
-          curl -fsSLo xbps-static-latest.x86_64-musl.tar.xz https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
-          tar xvf xbps-static-latest.x86_64-musl.tar.xz -C /opt/xbps
-          rm xbps-static-latest.x86_64-musl.tar.xz
-      - name: build
-        env:
-          XBPS_TARGET_ARCH: ${{ matrix.target }}
+          archive=xbps-static-latest.x86_64-musl.tar.xz
+          curl -fsSLo "$archive" "https://repo-default.voidlinux.org/static/$archive"
+          tar -xf "$archive" -C /opt/xbps
+          rm -f "$archive"
+
+      - name: build package
+        working-directory: void-packages
         run: |
           set -euo pipefail
-          export PATH="/opt/xbps/usr/bin/:$PATH"
-          cd void-packages
-          if [[ "${{ matrix.host }}" == "${{ matrix.target }}" ]]; then
-            ./xbps-src -A "${{ matrix.host }}" binary-bootstrap
-            for attempt in 1 2 3; do
-              ./xbps-src pkg -j4 -A "${{ matrix.host }}" librewolf && exit 0
-              echo "Package build attempt ${attempt}/3 failed; retrying." >&2
-              sleep $((attempt * 15))
-            done
-          else
-            ./xbps-src -a "${{ matrix.target }}" -A "${{ matrix.host }}" binary-bootstrap
-            for attempt in 1 2 3; do
-              ./xbps-src pkg -j4 -a "${{ matrix.target }}" -A "${{ matrix.host }}" librewolf && exit 0
-              echo "Package build attempt ${attempt}/3 failed; retrying." >&2
-              sleep $((attempt * 15))
-            done
-          fi
+          export PATH="/opt/xbps/usr/bin:$PATH"
+          ./xbps-src -A x86_64 binary-bootstrap
+          for attempt in 1 2 3; do
+            if ./xbps-src pkg -j4 -A x86_64 librewolf; then
+              exit 0
+            fi
+            echo "Package build attempt ${attempt}/3 failed; retrying." >&2
+            sleep $((attempt * 15))
+          done
           exit 1
-      - name: sign
+
+      - name: sign and publish release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        env:
-          XBPS_PASSPHRASE: ${{ secrets.SIGN_PASS }}
-          XBPS_TARGET_ARCH: ${{ matrix.target }}
-        working-directory: void-packages/hostdir/binpkgs/
-        run: |
-          set -euo pipefail
-          export PATH="/opt/xbps/usr/bin/:$PATH"
-          xbps-rindex -r $PWD
-          xbps-rindex -s --signedby "${{ vars.SIGNEDBY }}" --privkey <(printf '%s' "${{ secrets.PRIV_KEY }}") $PWD
-          xbps-rindex -S --privkey <(printf '%s' "${{ secrets.PRIV_KEY }}") *.xbps
-          xbps-rindex -c $PWD
-      - name: checksum
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        working-directory: void-packages/hostdir/binpkgs/
-        run: |
-          set -euo pipefail
-          sha256sum $(echo *.xbps)
-          sha512sum $(echo *.xbps)
-      - name: upload assets
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        working-directory: void-packages/hostdir/binpkgs/
+        working-directory: void-packages/hostdir/binpkgs
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release upload "${{ github.ref_name }}" *.xbps *.xbps.sig2 *-repodata --clobber
-      - name: upload manual build artifacts
+          XBPS_PASSPHRASE: ${{ secrets.SIGN_PASS }}
+        run: |
+          set -euo pipefail
+          export PATH="/opt/xbps/usr/bin:$PATH"
+          xbps-rindex -r "$PWD"
+          xbps-rindex -s --signedby "${{ vars.SIGNEDBY }}" \
+            --privkey <(printf '%s' "${{ secrets.PRIV_KEY }}") "$PWD"
+          xbps-rindex -S --privkey <(printf '%s' "${{ secrets.PRIV_KEY }}") *.xbps
+          xbps-rindex -c "$PWD"
+          sha256sum *.xbps
+          sha512sum *.xbps
+          gh release upload "${{ github.ref_name }}" \
+            *.xbps *.xbps.sig2 *-repodata --clobber
+          gh release edit "${{ github.ref_name }}" --latest
+
+      - name: upload manual build artifact
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: librewolf-x86_64-glibc-i3-6100U
           path: void-packages/hostdir/binpkgs/*.xbps
           if-no-files-found: error
-  latest:
-    needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: mark release as latest
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: gh release edit "${{ github.ref_name }}" --latest
