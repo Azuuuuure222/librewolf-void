@@ -30,13 +30,10 @@ jobs:
   build:
     needs: release
     strategy:
-      max-parallel: 4
+      max-parallel: 1
       matrix:
         include:
-          - { host: x86_64, target: x86_64 }
           - { host: x86_64-musl, target: x86_64-musl }
-          - { host: x86_64, target: aarch64 }
-          - { host: x86_64-musl, target: aarch64-musl }
     runs-on: ubuntu-22.04
     steps:
       - name: free space
@@ -75,17 +72,13 @@ jobs:
           rm xbps-static-latest.x86_64-musl.tar.xz
       - name: build
         env:
-          XBPS_TARGET_ARCH: ${{ matrix.target }}
+          XBPS_TARGET_ARCH: x86_64-musl
         run: |
           export PATH="/opt/xbps/usr/bin/:$PATH"
           cd void-packages
-          if [[ "${{ matrix.host }}" == "${{ matrix.target }}" ]]; then
-            ./xbps-src -A ${{ matrix.host }} binary-bootstrap
-            ./xbps-src pkg -j4 -A ${{ matrix.host }} librewolf
-          else
-            ./xbps-src -a ${{ matrix.target }} -A ${{ matrix.host }} binary-bootstrap
-            ./xbps-src pkg -j4 -a ${{ matrix.target }} -A ${{ matrix.host }} librewolf
-          fi
+          jobs="$(nproc)"
+          ./xbps-src -A x86_64-musl binary-bootstrap
+          ./xbps-src pkg -j"${jobs}" -A x86_64-musl librewolf
       - name: sign
         env:
           XBPS_PASSPHRASE: ${{ secrets.SIGN_PASS }}
