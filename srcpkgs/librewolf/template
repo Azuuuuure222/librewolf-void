@@ -36,16 +36,6 @@ desc_option_pgo="Enable Profile-guided Optimization"
 desc_option_clang="Build with clang"
 desc_option_wasi="Build wasm sandboxed libraries"
 
-case $XBPS_TARGET_MACHINE in
-	armv[56]*) broken="required NEON extensions are not supported on armv6" ;;
-	ppc64*) ;;
-	ppc*) broken="xptcall bitrot" ;;
-esac
-
-if [ "$CROSS_BUILD" -a "$build_option_pgo" ]; then
-	broken="pgo can't be enabled for cross-compilation"
-fi
-
 # we need this because cargo verifies checksums of all files in vendor
 # crates when it builds and gives us no way to override or update the
 # file sanely... so just clear out the file list
@@ -66,7 +56,7 @@ post_extract() {
 }
 
 post_patch() {
-	: # _clear_vendor_checksums num-traits
+	_clear_vendor_checksums audio_thread_priority
 	if [ "$XBPS_TARGET_LIBC" = "musl" ]; then
 		vsed -e '\;sys/single_threaded.h;d' -i config/system-headers.mozbuild
 	fi
@@ -93,40 +83,15 @@ do_build() {
 		export HOST_CC=clang
 		export HOST_CXX=clang++
 
-		export ASFLAGS="--target=${XBPS_CROSS_TRIPLET:-${XBPS_TRIPLET}}"
+		export ASFLAGS="--target=${XBPS_TRIPLET}"
 	fi
 
 	disable_jemalloc() {
-		if [ "$XBPS_TARGET_LIBC" = "musl" ]; then
-			echo "ac_add_options --disable-jemalloc"
-		fi
+		echo "ac_add_options --disable-jemalloc"
 	}
 
 	disable_elfhack() {
-		case "$XBPS_TARGET_MACHINE" in
-		x86_64*|i686*|arm*|aarch64*) echo "ac_add_options --disable-elf-hack" ;;
-		esac
-	}
-
-	disable_webrtc() {
-		# it seems mozilla has started catching up with google's webrtc
-		# and this newly involves introducing several megabytes of generated
-		# json junk that we just cannot maintain in-tree, additionally they
-		# have indicated that they will be re-generating these frequently
-		#
-		# it is unacceptable to keep a 7MB patch downstream, so disable it
-		#
-		# https://phabricator.services.mozilla.com/D134738
-		#
-		case "$XBPS_TARGET_MACHINE" in
-		armv7l*) echo "ac_add_options --disable-webrtc" ;;
-		esac
-
-		# third_party/libwebrtc/common_audio/wav_file.cc:93:2: error:
-		# #error "Need to convert samples to big-endian when reading from WAV file"
-		if [ "$XBPS_TARGET_ENDIAN" = "be" ]; then
-			echo "ac_add_options --disable-webrtc"
-		fi
+		echo "ac_add_options --disable-elf-hack"
 	}
 
 	disable_wasi() {
@@ -141,7 +106,7 @@ do_build() {
 	ac_add_options --prefix=/usr
 	ac_add_options --libdir=/usr/lib
 	ac_add_options --host=${XBPS_TRIPLET}
-	ac_add_options --target=${XBPS_CROSS_TRIPLET:-${XBPS_TRIPLET}}
+	ac_add_options --target=${XBPS_TRIPLET}
 	ac_add_options --enable-linker=$(vopt_if clang lld bfd)
 	ac_add_options --disable-bootstrap
 	$(vopt_if lto 'ac_add_options --enable-lto=cross')
@@ -162,7 +127,6 @@ do_build() {
 	ac_add_options --disable-profiling
 	$(disable_jemalloc)
 	$(disable_elfhack)
-	$(disable_webrtc)
 	$(disable_wasi)
 	ac_add_options --with-mozilla-api-keyfile="${wrksrc}/mozilla-api-key"
 	ac_add_options --enable-system-pixman
@@ -213,13 +177,6 @@ do_build() {
 	if [ -z "$build_option_debug" ]; then
 		echo "ac_add_options --disable-debug-symbols" >>mozconfig
 		echo "ac_add_options --disable-debug" >>mozconfig
-	fi
-
-	# work around large debug symbols on 32-bit hosts
-	if [ "$XBPS_WORDSIZE" = "32" ]; then
-		echo "ac_add_options --disable-debug-symbols" >>mozconfig
-		echo "ac_add_options --disable-debug" >>mozconfig
-		export LDFLAGS+=" -Wl,--no-keep-memory"
 	fi
 
 	if [ "$SOURCE_DATE_EPOCH" ]; then
