@@ -1,6 +1,6 @@
 # Template file for 'librewolf'
 pkgname=librewolf
-version=155.0.1
+version=156.0.1
 revision=1
 _rev=1
 wrksrc=${pkgname}-${version}-${_rev}
@@ -10,7 +10,7 @@ maintainer="index <index@mailbox.org>"
 license="GPL-3.0-only AND LGPL-2.1-only AND LGPL-3.0-only AND MPL-2.0"
 homepage="https://librewolf.dev"
 distfiles="https://librewolf.dev/api/packages/librewolf/generic/librewolf-source/${version}-${_rev}/${pkgname}-${version}-${_rev}.source.tar.gz"
-checksum=824b084991313f6a980ff64d7af14fd67357fd3f15a7ad338d0cca87c5133208
+checksum=93b6d0189fa1171b9ce9ee42c95f8721f7f10df0c1214922ee965a4efbc64f46
 
 lib32disabled=yes
 
@@ -29,11 +29,7 @@ makedepends="nss-devel libjpeg-turbo-devel gtk+3-devel
 depends="nss>=3.126.1 nspr>=4.32 desktop-file-utils hicolor-icon-theme pciutils"
 
 build_options="alsa jack dbus pulseaudio xscreensaver sndio wayland lto pgo clang wasi debug"
-build_options_default="alsa jack dbus pulseaudio xscreensaver sndio wayland clang wasi"
-
-if [ "$XBPS_WORDSIZE" != "32" ]; then
-	build_options_default+=" debug"
-fi
+build_options_default="alsa jack dbus pulseaudio xscreensaver sndio wayland clang wasi pgo"
 
 desc_option_lto="Enable Link Time Optimization"
 desc_option_pgo="Enable Profile-guided Optimization"
@@ -78,8 +74,11 @@ post_patch() {
 
 do_build() {
 	export AS="${CC}"
-	export CFLAGS="-O2"
-	export CXXFLAGS="-O2"
+	# Target-specific build: Intel Skylake (i3-6100U / Core i3-6100-class).
+	# This package is intentionally not portable to pre-Skylake x86_64 CPUs.
+	export CFLAGS="-O2 -march=skylake -mtune=skylake"
+	export CXXFLAGS="-O2 -march=skylake -mtune=skylake"
+	export RUSTFLAGS="-C target-cpu=skylake ${RUSTFLAGS:-}"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
 	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf"
