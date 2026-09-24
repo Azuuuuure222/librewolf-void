@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout librewolf-void
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: create release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -52,12 +52,12 @@ jobs:
           sudo rm -rf /usr/local/lib/node_modules
           sudo docker image prune --all --force
       - name: checkout librewolf-void
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           path: librewolf
       - name: checkout void-packages
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: void-linux/void-packages
           ref: master
