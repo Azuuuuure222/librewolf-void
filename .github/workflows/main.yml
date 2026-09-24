@@ -71,6 +71,30 @@ jobs:
           curl -LO https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
           tar xvf xbps-static-latest.x86_64-musl.tar.xz -C /opt/xbps
           rm xbps-static-latest.x86_64-musl.tar.xz
+      - name: fetch librewolf source
+        run: |
+          set -euo pipefail
+          pkg_template="librewolf/srcpkgs/librewolf/template"
+          pkgname="$(sed -n 's/^pkgname=//p' "$pkg_template")"
+          version="$(sed -n 's/^version=//p' "$pkg_template")"
+          _rev="$(sed -n 's/^_rev=//p' "$pkg_template")"
+          distfiles="$(sed -n 's/^distfiles="//p' "$pkg_template" | sed 's/"$//')"
+          checksum="$(sed -n 's/^checksum=//p' "$pkg_template")"
+          distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
+          disturl="${distfiles//\$\{pkgname\}/$pkgname}"
+          disturl="${disturl//\$\{version\}/$version}"
+          disturl="${disturl//\$\{_rev\}/$_rev}"
+          dest="void-packages/hostdir/sources/$distfile"
+          tmp="$dest.part"
+          mkdir -p "$(dirname "$dest")"
+          curl --fail --location --http1.1 \
+            --retry 8 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 30 --max-time 3600 \
+            --continue-at - --output "$tmp" "$disturl"
+          test -s "$tmp"
+          printf '%s  %s\n' "$checksum" "$tmp" | sha256sum -c -
+          mv -f "$tmp" "$dest"
+          test -s "$dest"
       - name: build
         env:
           XBPS_TARGET_ARCH: x86_64-musl
