@@ -60,7 +60,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: void-linux/void-packages
-          ref: master
+          # Pin Void packaging inputs so dependency/toolchain changes cannot silently alter a build.
+          ref: fd9fcd5940f7b6757b87bf6b1c7a970c337d0a08
           path: void-packages
       - name: copy librewolf into srcpkgs
         run: cp -rv librewolf/srcpkgs/librewolf void-packages/srcpkgs
