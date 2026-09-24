@@ -75,9 +75,11 @@ jobs:
         env:
           XBPS_TARGET_ARCH: x86_64-musl
         run: |
+          set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
           cd void-packages
           jobs="$(nproc)"
+          test "$jobs" -ge 1
           ./xbps-src -A x86_64-musl binary-bootstrap
           ./xbps-src pkg -j"${jobs}" -A x86_64-musl librewolf
       - name: sign
@@ -85,19 +87,24 @@ jobs:
           XBPS_PASSPHRASE: ${{ secrets.SIGN_PASS }}
           XBPS_TARGET_ARCH: ${{ matrix.target }}
           PRIV_KEY: ${{ secrets.PRIV_KEY }}
+          SIGNEDBY: ${{ vars.SIGNEDBY }}
         working-directory: void-packages/hostdir/binpkgs/
         run: |
+          set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
           keyfile="$RUNNER_TEMP/xbps-privkey.pem"
+          trap 'rm -f "$keyfile"' EXIT
           umask 077
+          test -n "$PRIV_KEY" || { echo "PRIV_KEY is not configured" >&2; exit 1; }
+          test -n "$XBPS_PASSPHRASE" || { echo "SIGN_PASS is not configured" >&2; exit 1; }
+          test -n "$SIGNEDBY" || { echo "SIGNEDBY is not configured" >&2; exit 1; }
           printf '%s\n' "$PRIV_KEY" > "$keyfile"
           test -s "$keyfile"
           openssl rsa -in "$keyfile" -check -noout -passin env:XBPS_PASSPHRASE
           xbps-rindex -r "$PWD"
-          xbps-rindex -s --signedby "${{ vars.SIGNEDBY }}" --privkey "$keyfile" "$PWD"
+          xbps-rindex -s --signedby "$SIGNEDBY" --privkey "$keyfile" "$PWD"
           xbps-rindex -S --privkey "$keyfile" *.xbps
           xbps-rindex -c "$PWD"
-          rm -f "$keyfile"
       - name: checksum
         working-directory: void-packages/hostdir/binpkgs/
         run: |
