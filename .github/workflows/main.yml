@@ -83,13 +83,20 @@ jobs:
         env:
           XBPS_PASSPHRASE: ${{ secrets.SIGN_PASS }}
           XBPS_TARGET_ARCH: ${{ matrix.target }}
+          PRIV_KEY: ${{ secrets.PRIV_KEY }}
         working-directory: void-packages/hostdir/binpkgs/
         run: |
           export PATH="/opt/xbps/usr/bin/:$PATH"
-          xbps-rindex -r $PWD
-          xbps-rindex -s --signedby "${{ vars.SIGNEDBY }}" --privkey <(printf '%s' "${{ secrets.PRIV_KEY }}") $PWD
-          xbps-rindex -S --privkey <(printf '%s' "${{ secrets.PRIV_KEY }}") *.xbps
-          xbps-rindex -c $PWD
+          keyfile="$RUNNER_TEMP/xbps-privkey.pem"
+          umask 077
+          printf '%s\n' "$PRIV_KEY" > "$keyfile"
+          test -s "$keyfile"
+          openssl rsa -in "$keyfile" -check -noout -passin env:XBPS_PASSPHRASE
+          xbps-rindex -r "$PWD"
+          xbps-rindex -s --signedby "${{ vars.SIGNEDBY }}" --privkey "$keyfile" "$PWD"
+          xbps-rindex -S --privkey "$keyfile" *.xbps
+          xbps-rindex -c "$PWD"
+          rm -f "$keyfile"
       - name: checksum
         working-directory: void-packages/hostdir/binpkgs/
         run: |
