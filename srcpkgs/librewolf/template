@@ -199,7 +199,7 @@ do_build() {
 		LLVM_PROFDATA=llvm-profdata \
 		JARLOG_FILE="$PWD/jarlog" \
 		GDK_BACKEND=x11 \
-		LD_LIBRARY_PATH="$PWD/obj/dist/firefox" \
+		LD_LIBRARY_PATH="$PWD/obj/dist/librewolf" \
 		XDG_RUNTIME_DIR="$(mktemp -d "${wrksrc}/pgo-runtime-XXXXXX")" \
 		MOZ_ENABLE_WAYLAND=0 \
 			xvfb-run -s "-screen 0 1920x1080x24 -nolisten local" \
