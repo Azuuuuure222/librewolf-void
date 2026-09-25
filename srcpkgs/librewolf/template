@@ -71,8 +71,12 @@ do_build() {
 	export RUSTFLAGS="-C target-cpu=skylake ${RUSTFLAGS:-}"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
-	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf"
-	# export LDFLAGS+="-Wl,--threads=${XBPS_MAKEJOBS}"
+	# Keep the final ThinLTO link from exhausting 4 GiB RAM on the 2C/4T Skylake runner.
+	_lto_link_flags=""
+	if [ "$build_option_clang" ] && [ "$build_option_lto" ]; then
+		_lto_link_flags="-Wl,--thinlto-jobs=2"
+	fi
+	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf ${_lto_link_flags}"
 
 	if [ "$build_option_clang" ]; then
 		export CC=clang
@@ -212,7 +216,7 @@ do_build() {
 
 		cp mozconfig{.orig,}
 		cat <<-! >>mozconfig
-		ac_add_options --enable-lto=cross,full
+		ac_add_options --enable-lto=cross,thin
 		ac_add_options --enable-profile-use=cross
 		ac_add_options --with-pgo-profile-path=${PWD@Q}/merged.profdata
 		ac_add_options --with-pgo-jarlog=${PWD@Q}/jarlog
