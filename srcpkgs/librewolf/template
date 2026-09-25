@@ -17,7 +17,7 @@ lib32disabled=yes
 _llvmver=22
 hostmakedepends="unzip zip pkg-config perl python3 yasm rust
  cargo llvm${_llvmver} clang${_llvmver} lld${_llvmver} nodejs cbindgen nasm which
- tar xz $(vopt_if pgo 'xvfb-run dbus mesa-dri vulkan-loader pciutils')
+ rust-sccache tar xz $(vopt_if pgo 'xvfb-run dbus mesa-dri vulkan-loader pciutils')
  $(vopt_if wasi wasi-sdk)"
 makedepends="nss-devel libjpeg-turbo-devel gtk+3-devel
  pixman-devel libevent-devel libnotify-devel libwebp-devel
