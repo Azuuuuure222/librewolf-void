@@ -29,7 +29,7 @@ makedepends="nss-devel libjpeg-turbo-devel gtk+3-devel
 depends="nss>=3.126.1 nspr>=4.32 desktop-file-utils hicolor-icon-theme pciutils"
 
 build_options="alsa jack dbus pulseaudio xscreensaver sndio wayland lto pgo clang wasi debug"
-build_options_default="alsa jack dbus pulseaudio xscreensaver sndio wayland clang wasi pgo"
+build_options_default="alsa jack dbus pulseaudio xscreensaver sndio wayland lto clang wasi pgo"
 
 desc_option_lto="Enable Link Time Optimization"
 desc_option_pgo="Enable Profile-guided Optimization"
@@ -109,7 +109,7 @@ do_build() {
 	ac_add_options --enable-linker=$(vopt_if clang lld bfd)
 	ac_add_options --disable-bootstrap
 	ac_add_options --with-ccache=sccache
-	$(vopt_if lto 'ac_add_options --enable-lto=cross')
+	$(vopt_if lto 'ac_add_options --enable-lto=cross,thin')
 	$(vopt_if clang 'ac_add_options --with-libclang-path=/usr/lib')
 
 	ac_add_options --enable-application=browser
@@ -215,7 +215,6 @@ do_build() {
 
 		cp mozconfig{.orig,}
 		cat <<-! >>mozconfig
-		ac_add_options --enable-lto=cross,thin
 		ac_add_options --enable-profile-use=cross
 		ac_add_options --with-pgo-profile-path=${PWD@Q}/merged.profdata
 		ac_add_options --with-pgo-jarlog=${PWD@Q}/jarlog
