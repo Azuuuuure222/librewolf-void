@@ -121,6 +121,9 @@ jobs:
           RUSTC_WRAPPER: sccache
         run: |
           set -euo pipefail
+          # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor.
+          # xbps-uunshare needs uid_map access for its build chroot.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           export PATH="/opt/xbps/usr/bin/:$PATH"
           cd void-packages
           jobs="$(nproc)"
