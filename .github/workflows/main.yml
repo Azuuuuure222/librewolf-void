@@ -87,6 +87,9 @@ jobs:
           curl -LO https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
           tar xvf xbps-static-latest.x86_64-musl.tar.xz -C /opt/xbps
           rm xbps-static-latest.x86_64-musl.tar.xz
+      - name: setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
       - name: fetch librewolf source
         run: |
           set -euo pipefail
@@ -114,6 +117,8 @@ jobs:
       - name: build
         env:
           XBPS_TARGET_ARCH: x86_64-musl
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
         run: |
           set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
