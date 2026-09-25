@@ -196,6 +196,9 @@ do_build() {
 
 	if [ "$build_option_pgo" ]; then
 		cp mozconfig{,.orig}
+		# LTO is only needed for the final PGO-use build; skip it in the
+		# instrumented build to reduce compile and link time.
+		sed -i '\;ac_add_options --enable-lto=;d' mozconfig
 		echo "ac_add_options --enable-profile-generate=cross" >> mozconfig
 
 		./mach build
