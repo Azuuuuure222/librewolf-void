@@ -71,13 +71,7 @@ do_build() {
 	export RUSTFLAGS="-C target-cpu=skylake ${RUSTFLAGS:-}"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
-	# Use all available CI cores for the final ThinLTO link.
-	_lto_link_flags=""
-	if [ "$build_option_clang" ] && [ "$build_option_lto" ]; then
-		lto_jobs="$(nproc)"
-		_lto_link_flags="-Wl,--threads=${lto_jobs} -Wl,--thinlto-jobs=${lto_jobs}"
-	fi
-	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf ${_lto_link_flags}"
+	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf"
 
 	if [ "$build_option_clang" ]; then
 		export CC=clang
@@ -226,6 +220,13 @@ do_build() {
 		ac_add_options --with-pgo-profile-path=${PWD@Q}/merged.profdata
 		ac_add_options --with-pgo-jarlog=${PWD@Q}/jarlog
 		!
+	fi
+
+	# The PGO path enables ThinLTO in the final build even when the separate
+	# lto build option is disabled. Use every available CI core for that link.
+	if [ "$build_option_clang" ] && { [ "$build_option_lto" ] || [ "$build_option_pgo" ]; }; then
+		lto_jobs="$(nproc)"
+		export LDFLAGS+=" -Wl,--threads=${lto_jobs} -Wl,--thinlto-jobs=${lto_jobs}"
 	fi
 
 	./mach build
