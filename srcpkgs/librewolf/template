@@ -71,10 +71,11 @@ do_build() {
 	export RUSTFLAGS="-C target-cpu=skylake ${RUSTFLAGS:-}"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
-	# Keep the final ThinLTO link from exhausting 4 GiB RAM on the 2C/4T Skylake runner.
+	# Use all available CI cores for the final ThinLTO link.
 	_lto_link_flags=""
 	if [ "$build_option_clang" ] && [ "$build_option_lto" ]; then
-		_lto_link_flags="-Wl,--thinlto-jobs=2"
+		lto_jobs="$(nproc)"
+		_lto_link_flags="-Wl,--threads=${lto_jobs} -Wl,--thinlto-jobs=${lto_jobs}"
 	fi
 	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf ${_lto_link_flags}"
 
@@ -113,6 +114,7 @@ do_build() {
 	ac_add_options --target=${XBPS_TRIPLET}
 	ac_add_options --enable-linker=$(vopt_if clang lld bfd)
 	ac_add_options --disable-bootstrap
+	ac_add_options --with-ccache=sccache
 	$(vopt_if lto 'ac_add_options --enable-lto=cross')
 	$(vopt_if clang 'ac_add_options --with-libclang-path=/usr/lib')
 
