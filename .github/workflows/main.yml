@@ -50,7 +50,7 @@ jobs:
       matrix:
         include:
           - { host: x86_64-musl, target: x86_64-musl }
-    runs-on: ubuntu-22.04
+    runs-on: ${{ vars.LIBREWOLF_RUNNER || 'ubuntu-24.04' }}
     steps:
       - name: free space
         run: |
