@@ -14,6 +14,22 @@ jobs:
     steps:
       - name: checkout librewolf-void
         uses: actions/checkout@v7
+      - name: verify signing configuration
+        env:
+          XBPS_PASSPHRASE: ${{ secrets.SIGN_PASS }}
+          PRIV_KEY: ${{ secrets.PRIV_KEY }}
+          SIGNEDBY: ${{ vars.SIGNEDBY }}
+        run: |
+          set -euo pipefail
+          keyfile="$RUNNER_TEMP/xbps-privkey.pem"
+          trap 'rm -f "$keyfile"' EXIT
+          umask 077
+          test -n "$PRIV_KEY" || { echo "PRIV_KEY is not configured" >&2; exit 1; }
+          test -n "$XBPS_PASSPHRASE" || { echo "SIGN_PASS is not configured" >&2; exit 1; }
+          test -n "$SIGNEDBY" || { echo "SIGNEDBY is not configured" >&2; exit 1; }
+          printf '%s\n' "$PRIV_KEY" > "$keyfile"
+          test -s "$keyfile"
+          openssl rsa -in "$keyfile" -check -noout -passin env:XBPS_PASSPHRASE
       - name: create release
         env:
           GH_TOKEN: ${{ github.token }}
