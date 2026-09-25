@@ -123,6 +123,8 @@ jobs:
           set -euo pipefail
           # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor.
           # xbps-uunshare needs uid_map access for its build chroot.
+          apparmor_userns_restrict="$(sudo sysctl -n kernel.apparmor_restrict_unprivileged_userns)"
+          trap 'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns="$apparmor_userns_restrict" >/dev/null || true' EXIT
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           export PATH="/opt/xbps/usr/bin/:$PATH"
           cd void-packages
