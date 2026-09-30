@@ -4,7 +4,14 @@ on:
   push:
     branches:
       - master
+    paths:
+      - srcpkgs/librewolf/template
+      - .github/workflows/source-cache.yml
   workflow_dispatch:
+
+concurrency:
+  group: source-cache
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -12,6 +19,7 @@ permissions:
 jobs:
   source:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     cache-mode: write
     steps:
       - name: checkout librewolf-void
@@ -51,7 +59,7 @@ jobs:
           echo "file=librewolf-${version}-${_rev}.source.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: cache LibreWolf source
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/librewolf-source-cache
           key: librewolf-source-v2-${{ steps.source.outputs.sha256 }}
@@ -79,8 +87,8 @@ jobs:
           rm -f "$cache_file" "$tmp"
           curl --fail --location --http1.1 \
             --retry 8 --retry-all-errors --retry-delay 5 \
-            --connect-timeout 30 --max-time 3600 \
-            --continue-at - --output "$tmp" "$SOURCE_URL"
+            --connect-timeout 30 --speed-limit 1024 --speed-time 60 \
+            --max-time 900 --continue-at - --output "$tmp" "$SOURCE_URL"
           test -s "$tmp"
           verify "$tmp"
           mv -f "$tmp" "$cache_file"
