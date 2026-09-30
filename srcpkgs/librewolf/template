@@ -75,7 +75,7 @@ do_build() {
 	# This package is intentionally not portable to pre-Skylake x86_64 CPUs.
 	export CFLAGS="${CFLAGS:-} -O2 -march=skylake -mtune=skylake"
 	export CXXFLAGS="${CXXFLAGS:-} -O2 -march=skylake -mtune=skylake"
-	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake"
+	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake -C opt-level=2"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
 	export LDFLAGS="${LDFLAGS:-} -Wl,-rpath=/usr/lib/librewolf"
@@ -118,7 +118,7 @@ do_build() {
 	ac_add_options --enable-linker=$(vopt_if clang lld bfd)
 	ac_add_options --disable-bootstrap
 	ac_add_options --with-ccache=sccache
-	$(vopt_if lto 'ac_add_options --enable-lto=cross,thin')
+	$(vopt_if lto 'ac_add_options --enable-lto=cross,full')
 	$(vopt_if clang 'ac_add_options --with-libclang-path=/usr/lib')
 
 	ac_add_options --enable-application=browser
