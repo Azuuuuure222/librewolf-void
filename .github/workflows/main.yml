@@ -68,6 +68,7 @@ jobs:
           ref: ${{ github.sha }}
           path: librewolf
           persist-credentials: false
+          persist-credentials: false
 
       - name: checkout void-packages
         uses: actions/checkout@v7
