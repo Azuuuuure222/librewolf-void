@@ -50,6 +50,7 @@ jobs:
             --title "librewolf $TAG" \
             --notes "https://librewolf.dev/librewolf/source/releases/tag/${version}-${_rev}" \
             --latest=false
+
   build:
     needs: release
     runs-on: ${{ vars.LIBREWOLF_RUNNER || 'ubuntu-24.04' }}
@@ -59,78 +60,109 @@ jobs:
     steps:
       - name: free space
         run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          sudo rm -rf /opt/hostedtoolcache/
-          sudo rm -rf /usr/local/graalvm/
-          sudo rm -rf /usr/local/share/powershell
-          sudo rm -rf /usr/local/share/chromium
-          sudo rm -rf /usr/local/lib/node_modules
-          sudo docker image prune --all --force
+          sudo rm -rf /usr/share/dotnet             /usr/share/swift             /usr/local/lib/android             /opt/ghc             /usr/local/.ghcup             "/usr/local/share/boost"             "$AGENT_TOOLSDIRECTORY"             /opt/hostedtoolcache/             /usr/local/graalvm/             /usr/local/share/powershell             /usr/local/share/chromium             /usr/local/lib/node_modules
+
       - name: checkout librewolf-void
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           path: librewolf
+
       - name: checkout void-packages
         uses: actions/checkout@v7
         with:
           repository: void-linux/void-packages
           ref: master
           path: void-packages
+
       - name: copy librewolf into srcpkgs
-        run: cp -rv librewolf/srcpkgs/librewolf void-packages/srcpkgs
-      - name: prepare LibreWolf source cache key
-        id: source-meta
+        run: cp -r librewolf/srcpkgs/librewolf void-packages/srcpkgs/
+
+      - name: prepare LibreWolf source
+        id: source
+        working-directory: librewolf
         run: |
           set -euo pipefail
-          template="librewolf/srcpkgs/librewolf/template"
+          template=srcpkgs/librewolf/template
           checksum=$(sed -n 's/^checksum=//p' "$template")
           version=$(sed -n 's/^version=//p' "$template")
           _rev=$(sed -n 's/^_rev=//p' "$template")
-          : "${checksum:?}" "${version:?}" "${_rev:?}"
+          distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
+          : "${checksum:?}" "${version:?}" "${_rev:?}" "${distfiles:?}"
           printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
             echo "invalid or missing SHA-256 checksum" >&2
             exit 1
           }
+          set -- $distfiles
+          [ "$#" -eq 1 ] || {
+            echo "template must contain exactly one distfile URL" >&2
+            exit 1
+          }
+          case "$1" in
+            https://*) ;;
+            *) echo "distfile URL must use HTTPS" >&2; exit 1 ;;
+          esac
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
+          echo "disturl=$1" >> "$GITHUB_OUTPUT"
           echo "distfile=librewolf-${version}-${_rev}.source.tar.gz" >> "$GITHUB_OUTPUT"
+
       - name: restore LibreWolf source cache
         id: source-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/librewolf-source-cache
-          key: librewolf-source-v2-${{ steps.source-meta.outputs.sha256 }}
+          key: librewolf-source-v2-${{ steps.source.outputs.sha256 }}
+
       - name: fetch and verify LibreWolf source
+        env:
+          SOURCE_URL: ${{ steps.source.outputs.disturl }}
+          SOURCE_FILE: ${{ steps.source.outputs.distfile }}
+          SOURCE_SHA256: ${{ steps.source.outputs.sha256 }}
         run: |
           set -euo pipefail
-          sh librewolf/.github/scripts/fetch-librewolf-source.sh \
-            librewolf/srcpkgs/librewolf/template \
-            "$RUNNER_TEMP/librewolf-source-cache" \
-            void-packages/hostdir/sources
+          cache_dir="$RUNNER_TEMP/librewolf-source-cache"
+          cache_file="$cache_dir/$SOURCE_FILE"
+          dest="void-packages/hostdir/sources/$SOURCE_FILE"
+          tmp="$cache_file.part"
+          mkdir -p "$cache_dir" "$(dirname "$dest")"
+
+          verify() {
+            printf '%s  %s\n' "$SOURCE_SHA256" "$1" | sha256sum -c - >/dev/null
+          }
+
+          if [ -s "$cache_file" ] && verify "$cache_file"; then
+            echo "LibreWolf source: verified cache hit"
+          else
+            rm -f "$cache_file" "$tmp"
+            curl --fail --location --http1.1 \
+              --retry 8 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 30 --max-time 3600 \
+              --continue-at - --output "$tmp" "$SOURCE_URL"
+            test -s "$tmp"
+            verify "$tmp"
+            mv -f "$tmp" "$cache_file"
+          fi
+
+          install -m 0644 "$cache_file" "$dest"
+          verify "$dest"
+
       - name: save LibreWolf source cache
         if: ${{ steps.source-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: ${{ runner.temp }}/librewolf-source-cache
-          key: librewolf-source-v2-${{ steps.source-meta.outputs.sha256 }}
-      - name: enforce LibreWolf source SHA-256
-        run: |
-          set -euo pipefail
-          source="void-packages/hostdir/sources/${{ steps.source-meta.outputs.distfile }}"
-          test -s "$source"
-          printf '%s  %s\n' "${{ steps.source-meta.outputs.sha256 }}" "$source" | sha256sum -c -
+          key: librewolf-source-v2-${{ steps.source.outputs.sha256 }}
+
       - name: prepare xbps-static
         run: |
+          set -euo pipefail
           mkdir -p /opt/xbps
-          curl -LO https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
-          tar xvf xbps-static-latest.x86_64-musl.tar.xz -C /opt/xbps
-          rm xbps-static-latest.x86_64-musl.tar.xz
+          curl --fail --location --retry 5 --retry-delay 3 \
+            --output /tmp/xbps-static.tar.xz \
+            https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
+          tar -xJf /tmp/xbps-static.tar.xz -C /opt/xbps
+          rm -f /tmp/xbps-static.tar.xz
+
       - name: setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
 
@@ -145,23 +177,28 @@ jobs:
           apparmor_userns_restrict="$(sudo sysctl -n kernel.apparmor_restrict_unprivileged_userns)"
           trap 'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns="$apparmor_userns_restrict" >/dev/null || true' EXIT
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
           export PATH="/opt/xbps/usr/bin/:$PATH"
           cd void-packages
           jobs="$(nproc)"
           test "$jobs" -ge 1
           ./xbps-src -A "$XBPS_TARGET_ARCH" binary-bootstrap
-          ./xbps-src pkg -j"${jobs}" -A "$XBPS_TARGET_ARCH" librewolf
+          ./xbps-src pkg -j"$jobs" -A "$XBPS_TARGET_ARCH" librewolf
+
       - name: checksum
         working-directory: void-packages/hostdir/binpkgs/
         run: |
-          sha256sum $(echo *.xbps)
-          sha512sum $(echo *.xbps)
+          set -euo pipefail
+          sha256sum -- *.xbps
+          sha512sum -- *.xbps
+
       - name: upload assets
         working-directory: void-packages/hostdir/binpkgs/
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh release upload "${{ github.ref_name }}" *.xbps *-repodata --clobber
+
   latest:
     needs: build
     permissions:
