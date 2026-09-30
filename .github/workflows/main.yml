@@ -21,22 +21,36 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           version=$(sed -n 's/^version=//p' srcpkgs/librewolf/template)
           _rev=$(sed -n 's/^_rev=//p' srcpkgs/librewolf/template)
-          : "${version:?}" "${_rev:?}"
+          checksum=$(sed -n 's/^checksum=//p' srcpkgs/librewolf/template)
+          distfiles=$(sed -n 's/^distfiles="//p' srcpkgs/librewolf/template | sed 's/"$//')
+          : "${version:?}" "${_rev:?}" "${checksum:?}" "${distfiles:?}"
+          printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
+            echo "template checksum must be exactly one 64-character SHA-256 digest" >&2
+            exit 1
+          }
+          set -- $distfiles
+          [ "$#" -eq 1 ] || {
+            echo "template must contain exactly one distfile URL" >&2
+            exit 1
+          }
+          case "$1" in
+            https://*) ;;
+            *) echo "distfile URL must use HTTPS" >&2; exit 1 ;;
+          esac
           expected_tag="${version}-${_rev}"
           test "$TAG" = "$expected_tag" || {
             echo "Tag $TAG does not match package version $expected_tag" >&2
             exit 1
           }
           gh release view "$TAG" >/dev/null 2>&1 && exit 0
-          gh release create "$TAG" \
-            --title "librewolf $TAG" \
-            --notes "https://librewolf.dev/librewolf/source/releases/tag/${version}-${_rev}" \
-            --latest=false
+          gh release create "$TAG"             --title "librewolf $TAG"             --notes "https://librewolf.dev/librewolf/source/releases/tag/${version}-${_rev}"             --latest=false
   build:
     needs: release
     runs-on: ${{ vars.LIBREWOLF_RUNNER || 'ubuntu-24.04' }}
+    cache-mode: write
     env:
       XBPS_TARGET_ARCH: x86_64-musl
     steps:
@@ -68,6 +82,43 @@ jobs:
           path: void-packages
       - name: copy librewolf into srcpkgs
         run: cp -rv librewolf/srcpkgs/librewolf void-packages/srcpkgs
+      - name: prepare LibreWolf source cache key
+        id: source-meta
+        run: |
+          set -euo pipefail
+          template="librewolf/srcpkgs/librewolf/template"
+          checksum=$(sed -n 's/^checksum=//p' "$template")
+          version=$(sed -n 's/^version=//p' "$template")
+          _rev=$(sed -n 's/^_rev=//p' "$template")
+          : "${checksum:?}" "${version:?}" "${_rev:?}"
+          printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
+            echo "invalid or missing SHA-256 checksum" >&2
+            exit 1
+          }
+          echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
+          echo "distfile=librewolf-${version}-${_rev}.source.tar.gz" >> "$GITHUB_OUTPUT"
+      - name: restore LibreWolf source cache
+        id: source-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/librewolf-source-cache
+          key: librewolf-source-v2-${{ steps.source-meta.outputs.sha256 }}
+      - name: fetch and verify LibreWolf source
+        run: |
+          set -euo pipefail
+          sh librewolf/.github/scripts/fetch-librewolf-source.sh             librewolf/srcpkgs/librewolf/template             "$RUNNER_TEMP/librewolf-source-cache"             void-packages/hostdir/sources
+      - name: save LibreWolf source cache
+        if: ${{ steps.source-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/librewolf-source-cache
+          key: librewolf-source-v2-${{ steps.source-meta.outputs.sha256 }}
+      - name: enforce LibreWolf source SHA-256
+        run: |
+          set -euo pipefail
+          source="void-packages/hostdir/sources/${{ steps.source-meta.outputs.distfile }}"
+          test -s "$source"
+          printf '%s  %s\n' "${{ steps.source-meta.outputs.sha256 }}" "$source" | sha256sum -c -
       - name: prepare xbps-static
         run: |
           mkdir -p /opt/xbps
@@ -77,30 +128,6 @@ jobs:
       - name: setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
 
-      - name: fetch librewolf source
-        run: |
-          set -euo pipefail
-          pkg_template="librewolf/srcpkgs/librewolf/template"
-          pkgname="$(sed -n 's/^pkgname=//p' "$pkg_template")"
-          version="$(sed -n 's/^version=//p' "$pkg_template")"
-          _rev="$(sed -n 's/^_rev=//p' "$pkg_template")"
-          distfiles="$(sed -n 's/^distfiles="//p' "$pkg_template" | sed 's/"$//')"
-          checksum="$(sed -n 's/^checksum=//p' "$pkg_template")"
-          distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
-          disturl="${distfiles//\$\{pkgname\}/$pkgname}"
-          disturl="${disturl//\$\{version\}/$version}"
-          disturl="${disturl//\$\{_rev\}/$_rev}"
-          dest="void-packages/hostdir/sources/$distfile"
-          tmp="$dest.part"
-          mkdir -p "$(dirname "$dest")"
-          curl --fail --location --http1.1 \
-            --retry 8 --retry-all-errors --retry-delay 5 \
-            --connect-timeout 30 --max-time 3600 \
-            --continue-at - --output "$tmp" "$disturl"
-          test -s "$tmp"
-          printf '%s  %s\n' "$checksum" "$tmp" | sha256sum -c -
-          mv -f "$tmp" "$dest"
-          test -s "$dest"
       - name: build
         env:
           SCCACHE_GHA_ENABLED: "true"
