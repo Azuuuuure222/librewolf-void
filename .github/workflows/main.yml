@@ -46,7 +46,10 @@ jobs:
             exit 1
           }
           gh release view "$TAG" >/dev/null 2>&1 && exit 0
-          gh release create "$TAG"             --title "librewolf $TAG"             --notes "https://librewolf.dev/librewolf/source/releases/tag/${version}-${_rev}"             --latest=false
+          gh release create "$TAG" \
+            --title "librewolf $TAG" \
+            --notes "https://librewolf.dev/librewolf/source/releases/tag/${version}-${_rev}" \
+            --latest=false
   build:
     needs: release
     runs-on: ${{ vars.LIBREWOLF_RUNNER || 'ubuntu-24.04' }}
@@ -106,7 +109,10 @@ jobs:
       - name: fetch and verify LibreWolf source
         run: |
           set -euo pipefail
-          sh librewolf/.github/scripts/fetch-librewolf-source.sh             librewolf/srcpkgs/librewolf/template             "$RUNNER_TEMP/librewolf-source-cache"             void-packages/hostdir/sources
+          sh librewolf/.github/scripts/fetch-librewolf-source.sh \
+            librewolf/srcpkgs/librewolf/template \
+            "$RUNNER_TEMP/librewolf-source-cache" \
+            void-packages/hostdir/sources
       - name: save LibreWolf source cache
         if: ${{ steps.source-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
