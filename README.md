@@ -31,7 +31,7 @@ PGO + full LTO are enabled by default. The final build uses the Skylake target, 
 
 The LibreWolf source archive has a **mandatory 64-character SHA-256 checksum** in the package template. CI rejects missing or malformed checksums, verifies the archive before it enters the xbps source directory, and verifies it again immediately before the build.
 
-Source downloads use an **immutable cache key derived from the exact SHA-256**. The cache is warmed from the `master` branch and restored by tag builds, so a new build normally avoids re-downloading the large LibreWolf archive. Cold downloads use resumable segmented `aria2c` transfers; checksum verification remains mandatory regardless of cache state.
+Source downloads use an **immutable cache key derived from the exact SHA-256**. A verified cold download is saved immediately, and later builds restore the same archive without re-downloading it. Cold downloads use resumable `curl` transfers with retries; checksum verification remains mandatory regardless of cache state.
 
 ## Scope
 
