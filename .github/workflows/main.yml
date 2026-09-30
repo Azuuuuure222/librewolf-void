@@ -100,9 +100,9 @@ jobs:
             echo "template must contain exactly one distfile URL" >&2
             exit 1
           }
-          disturl=${1//\${pkgname}/$pkgname}
-          disturl=${disturl//\${version}/$version}
-          disturl=${disturl//\${_rev}/$_rev}
+          disturl=${distfiles//\$\{pkgname\}/$pkgname}
+          disturl=${disturl//\$\{version\}/$version}
+          disturl=${disturl//\$\{_rev\}/$_rev}
           case "$disturl" in
             https://*) ;;
             *) echo "distfile URL must use HTTPS" >&2; exit 1 ;;
