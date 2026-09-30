@@ -67,6 +67,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           path: librewolf
+          persist-credentials: false
 
       - name: checkout void-packages
         uses: actions/checkout@v7
@@ -74,6 +75,7 @@ jobs:
           repository: void-linux/void-packages
           ref: master
           path: void-packages
+          persist-credentials: false
 
       - name: copy librewolf into srcpkgs
         run: cp -r librewolf/srcpkgs/librewolf void-packages/srcpkgs/
@@ -98,12 +100,15 @@ jobs:
             echo "template must contain exactly one distfile URL" >&2
             exit 1
           }
-          case "$1" in
+          disturl=${1//\${pkgname}/$pkgname}
+          disturl=${disturl//\${version}/$version}
+          disturl=${disturl//\${_rev}/$_rev}
+          case "$disturl" in
             https://*) ;;
             *) echo "distfile URL must use HTTPS" >&2; exit 1 ;;
           esac
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
-          echo "disturl=$1" >> "$GITHUB_OUTPUT"
+          echo "disturl=$disturl" >> "$GITHUB_OUTPUT"
           echo "distfile=librewolf-${version}-${_rev}.source.tar.gz" >> "$GITHUB_OUTPUT"
 
       - name: restore LibreWolf source cache
