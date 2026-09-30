@@ -78,7 +78,7 @@ do_build() {
 	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
-	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf"
+	export LDFLAGS="${LDFLAGS:-} -Wl,-rpath=/usr/lib/librewolf"
 
 	if [ "$build_option_clang" ]; then
 		export CC=clang
