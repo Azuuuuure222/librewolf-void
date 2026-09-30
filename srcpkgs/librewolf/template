@@ -73,9 +73,9 @@ do_build() {
 	export AS="${CC}"
 	# Target-specific build: Intel Skylake (i3-6100U / Core i3-6100-class).
 	# This package is intentionally not portable to pre-Skylake x86_64 CPUs.
-	export CFLAGS="-O2 -march=skylake -mtune=skylake"
-	export CXXFLAGS="-O2 -march=skylake -mtune=skylake"
-	export RUSTFLAGS="-C target-cpu=skylake ${RUSTFLAGS:-}"
+	export CFLAGS="${CFLAGS:-} -O2 -march=skylake -mtune=skylake"
+	export CXXFLAGS="${CXXFLAGS:-} -O2 -march=skylake -mtune=skylake"
+	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
 	export LDFLAGS="-Wl,-rpath=/usr/lib/librewolf"
@@ -164,7 +164,7 @@ do_build() {
 	MOZ_APP_REMOTINGNAME=librewolf
 	ac_add_options --disable-debug
 	ac_add_options --disable-default-browser-agent
-	# ac_add_options --enable-rust-simd
+	ac_add_options --enable-rust-simd
 
 	ac_add_options --with-app-name=librewolf
 	ac_add_options --with-branding=browser/branding/librewolf
