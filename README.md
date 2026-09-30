@@ -25,7 +25,7 @@ The resulting package is intended for Skylake-class x86_64-musl systems. CPUs ol
 
 ## Optimization
 
-PGO and LTO are kept optional because they substantially increase CI build time. The goal is to balance runtime optimization with the GitHub Actions build window.
+PGO + full LTO are enabled by default. The final build uses the Skylake target, cross-language PGO, full LTO, LLVM LTO -O3, and parallel LTO code generation.
 
 ## Scope
 
