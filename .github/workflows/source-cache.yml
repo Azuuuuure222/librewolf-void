@@ -43,7 +43,9 @@ jobs:
       - name: fetch and verify LibreWolf source
         run: |
           set -euo pipefail
-          sh .github/scripts/fetch-librewolf-source.sh             srcpkgs/librewolf/template             "$RUNNER_TEMP/librewolf-source-cache"
+          sh .github/scripts/fetch-librewolf-source.sh \
+            srcpkgs/librewolf/template \
+            "$RUNNER_TEMP/librewolf-source-cache"
 
       - name: save LibreWolf source cache
         if: ${{ steps.source-cache.outputs.cache-hit != 'true' }}
