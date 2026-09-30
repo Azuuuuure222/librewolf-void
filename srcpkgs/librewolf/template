@@ -1,7 +1,7 @@
 # Template file for 'librewolf'
 pkgname=librewolf
 version=157.0
-revision=3
+revision=4
 _rev=1
 wrksrc=${pkgname}-${version}-${_rev}
 build_helper="rust"
@@ -75,7 +75,8 @@ do_build() {
 	# This package is intentionally not portable to pre-Skylake x86_64 CPUs.
 	export CFLAGS="${CFLAGS:-} -O2 -march=skylake -mtune=skylake"
 	export CXXFLAGS="${CXXFLAGS:-} -O2 -march=skylake -mtune=skylake"
-	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake -C opt-level=2"
+	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake"
+	export RUSTC_OPT_LEVEL=2
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
 	export LDFLAGS="${LDFLAGS:-} -Wl,-rpath=/usr/lib/librewolf"
@@ -230,11 +231,11 @@ do_build() {
 		!
 	fi
 
-	# Full LTO + PGO is the default target build. Keep the final LTO link
-	# parallel across every available CI core.
+	# Full LTO + PGO are the default target build. Keep LTO at O2: the goal is
+	# resource-efficient runtime code, not maximum code-size/compile-time expansion.
 	if [ "$build_option_clang" ] && { [ "$build_option_lto" ] || [ "$build_option_pgo" ]; }; then
 		lto_jobs="$(nproc)"
-		export LDFLAGS+=" -Wl,--threads=${lto_jobs} -Wl,--lto-O3"
+		export LDFLAGS+=" -Wl,--threads=${lto_jobs} -Wl,--lto-O2"
 		export LDFLAGS+=" -Wl,--lto-partitions=${lto_jobs}"
 	fi
 
