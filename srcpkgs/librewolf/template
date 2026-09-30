@@ -1,7 +1,7 @@
 # Template file for 'librewolf'
 pkgname=librewolf
 version=157.0
-revision=2
+revision=3
 _rev=1
 wrksrc=${pkgname}-${version}-${_rev}
 build_helper="rust"
@@ -36,7 +36,7 @@ makedepends="nss-devel libjpeg-turbo-devel gtk+3-devel
 depends="nss>=3.129 nspr>=4.39 desktop-file-utils hicolor-icon-theme pciutils"
 
 build_options="alsa jack dbus pulseaudio xscreensaver sndio wayland lto pgo clang wasi debug"
-build_options_default="alsa dbus pulseaudio wayland clang wasi"
+build_options_default="alsa dbus pulseaudio wayland lto pgo clang wasi"
 
 desc_option_lto="Enable Link Time Optimization"
 desc_option_pgo="Enable Profile-guided Optimization"
@@ -230,11 +230,11 @@ do_build() {
 		!
 	fi
 
-	# The PGO path enables ThinLTO in the final build even when the separate
-	# lto build option is disabled. Use every available CI core for that link.
+	# Full LTO + PGO is the default target build. Keep the final LTO link
+	# parallel across every available CI core.
 	if [ "$build_option_clang" ] && { [ "$build_option_lto" ] || [ "$build_option_pgo" ]; }; then
 		lto_jobs="$(nproc)"
-		export LDFLAGS+=" -Wl,--threads=${lto_jobs} -Wl,--thinlto-jobs=${lto_jobs}"
+		export LDFLAGS+=" -Wl,--threads=${lto_jobs} -Wl,--lto-O3"
 	fi
 
 	./mach build
