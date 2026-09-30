@@ -14,6 +14,13 @@ checksum=93b6d0189fa1171b9ce9ee42c95f8721f7f10df0c1214922ee965a4efbc64f46
 
 lib32disabled=yes
 
+# This package is intentionally limited to x86_64-musl and Skylake-class CPUs.
+case "$XBPS_TARGET_MACHINE" in
+	x86_64-musl) ;;
+	*) broken="only supported on x86_64-musl" ;;
+esac
+
+
 _llvmver=22
 hostmakedepends="unzip zip pkg-config perl python3 yasm rust
  cargo llvm${_llvmver} clang${_llvmver} lld${_llvmver} nodejs cbindgen nasm which
