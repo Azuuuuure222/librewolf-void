@@ -6,10 +6,12 @@ on:
       - '*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: checkout librewolf-void
@@ -22,6 +24,11 @@ jobs:
           version=$(sed -n 's/^version=//p' srcpkgs/librewolf/template)
           _rev=$(sed -n 's/^_rev=//p' srcpkgs/librewolf/template)
           : "${version:?}" "${_rev:?}"
+          expected_tag="${version}-${_rev}"
+          test "$TAG" = "$expected_tag" || {
+            echo "Tag $TAG does not match package version $expected_tag" >&2
+            exit 1
+          }
           gh release view "$TAG" >/dev/null 2>&1 && exit 0
           gh release create "$TAG" \
             --title "librewolf $TAG" \
@@ -29,12 +36,9 @@ jobs:
             --latest=false
   build:
     needs: release
-    strategy:
-      max-parallel: 1
-      matrix:
-        include:
-          - { host: x86_64-musl, target: x86_64-musl }
     runs-on: ${{ vars.LIBREWOLF_RUNNER || 'ubuntu-24.04' }}
+    env:
+      XBPS_TARGET_ARCH: x86_64-musl
     steps:
       - name: free space
         run: |
@@ -60,8 +64,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: void-linux/void-packages
-          # Pin Void packaging inputs so dependency/toolchain changes cannot silently alter a build.
-          ref: fd9fcd5940f7b6757b87bf6b1c7a970c337d0a08
+          ref: master
           path: void-packages
       - name: copy librewolf into srcpkgs
         run: cp -rv librewolf/srcpkgs/librewolf void-packages/srcpkgs
@@ -100,7 +103,6 @@ jobs:
           test -s "$dest"
       - name: build
         env:
-          XBPS_TARGET_ARCH: x86_64-musl
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: sccache
         run: |
@@ -114,8 +116,8 @@ jobs:
           cd void-packages
           jobs="$(nproc)"
           test "$jobs" -ge 1
-          ./xbps-src -A x86_64-musl binary-bootstrap
-          ./xbps-src pkg -j"${jobs}" -A x86_64-musl librewolf
+          ./xbps-src -A "$XBPS_TARGET_ARCH" binary-bootstrap
+          ./xbps-src pkg -j"${jobs}" -A "$XBPS_TARGET_ARCH" librewolf
       - name: checksum
         working-directory: void-packages/hostdir/binpkgs/
         run: |
@@ -129,6 +131,8 @@ jobs:
         run: gh release upload "${{ github.ref_name }}" *.xbps *-repodata --clobber
   latest:
     needs: build
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: mark release as latest
