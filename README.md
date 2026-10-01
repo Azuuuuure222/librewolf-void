@@ -18,6 +18,8 @@ The package is compiled on GitHub Actions, **not on the target device**. Older C
 
 A SQLite-specific semantic-interposition override preserves correct shared-library relocations under full LTO while keeping the faster global Clang settings elsewhere.
 
+The runtime defaults are tuned for the target's 4 GB RAM and HDD: four shared web content processes, one preallocated content process, earlier low-memory reclamation, less aggressive session-store and cache write buffering, and no new-tab preload. PGO profiling uses a headless Wayland compositor in CI when available, with an X11 fallback for non-CI builds.
+
 ## CI & source integrity
 
 - The package template contains a mandatory 64-character SHA-256 checksum.

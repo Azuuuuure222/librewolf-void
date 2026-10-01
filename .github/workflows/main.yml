@@ -130,6 +130,12 @@ jobs:
           tar -xJf xbps-static-latest.x86_64-musl.tar.xz -C /opt/xbps
           rm -f xbps-static-latest.x86_64-musl.tar.xz
 
+      - name: install PGO Wayland compositor
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends weston
+
       - name: setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
 
