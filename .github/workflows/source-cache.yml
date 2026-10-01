@@ -58,6 +58,23 @@ jobs:
           echo "url=$disturl" >> "$GITHUB_OUTPUT"
           echo "file=librewolf-${version}-${_rev}.source.tar.gz" >> "$GITHUB_OUTPUT"
 
+      - name: repair 157.0-1 tag and dispatch build
+        if: ${{ github.ref == 'refs/heads/master' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: 157.0-1
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --jq '.object.sha')
+          if [ "$current" != "443a3171d1d58e7555f1d2c89eb5e4649463e53d" ]; then
+            echo "No tag repair needed: $TAG -> $current"
+            exit 0
+          fi
+          echo "Moving $TAG from $current to $GITHUB_SHA"
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" \
+            -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          gh workflow run main.yml --ref "$TAG"
+
       - name: cache LibreWolf source
         uses: actions/cache@v5
         with:
@@ -93,19 +110,3 @@ jobs:
           verify "$tmp"
           mv -f "$tmp" "$cache_file"
 
-      - name: repair 157.0-1 tag and dispatch build
-        if: ${{ github.ref == 'refs/heads/master' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: 157.0-1
-        run: |
-          set -euo pipefail
-          current=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --jq '.object.sha')
-          if [ "$current" != "443a3171d1d58e7555f1d2c89eb5e4649463e53d" ]; then
-            echo "No tag repair needed: $TAG -> $current"
-            exit 0
-          fi
-          echo "Moving $TAG from $current to $GITHUB_SHA"
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" \
-            -f sha="$GITHUB_SHA" -F force=true >/dev/null
-          gh workflow run main.yml --ref "$TAG"
