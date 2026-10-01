@@ -1,7 +1,7 @@
 # Template file for 'librewolf'
 pkgname=librewolf
 version=157.0
-revision=5
+revision=6
 _rev=1
 wrksrc=${pkgname}-${version}-${_rev}
 build_helper="rust"
@@ -66,6 +66,25 @@ post_patch() {
 	_clear_vendor_checksums audio_thread_priority
 	if [ "$XBPS_TARGET_LIBC" = "musl" ]; then
 		vsed -e '\;sys/single_threaded.h;d' -i config/system-headers.mozbuild
+	fi
+
+	# SQLite is linked as libmozsqlite3.so. Override the global
+	# -fno-semantic-interposition for this third-party shared library, which
+	# otherwise can produce non-PIC R_X86_64_PC32 relocations under full LTO.
+	if [ "$build_option_clang" ]; then
+		python3 - <<'PY'
+from pathlib import Path
+
+path = Path("third_party/sqlite3/src/moz.build")
+text = path.read_text()
+marker = "        '-Wno-sign-compare',\n"
+flag = "        '-fsemantic-interposition',\n"
+
+if flag not in text:
+    if marker not in text:
+        raise SystemExit("SQLite moz.build: expected warning-flags marker not found")
+    path.write_text(text.replace(marker, flag + marker, 1))
+PY
 	fi
 }
 
