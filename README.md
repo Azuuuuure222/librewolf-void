@@ -14,7 +14,7 @@ The package is compiled on GitHub Actions, **not on the target device**. Older C
 
 ## Build optimization
 
-**PGO + full LTO** are enabled. The build uses LLVM `-O2`, Rust optimization level 2, Skylake tuning, cross-language PGO, and parallel LTO code generation. The goal is efficient runtime behavior on a low-RAM Skylake system rather than maximum benchmark performance.
+**PGO + full native LLVM LTO** are enabled. Native C/C++ code uses full LTO; Rust is deliberately built with Thin LTO to reduce compiler memory use and CI time. The build uses LLVM `-O2`, Rust optimization level 2, Skylake tuning, cross-language PGO, and parallel LTO code generation. The goal is efficient runtime behavior on a low-RAM Skylake system rather than maximum benchmark performance.
 
 A SQLite-specific semantic-interposition override preserves correct shared-library relocations under full LTO while keeping the faster global Clang settings elsewhere.
 
