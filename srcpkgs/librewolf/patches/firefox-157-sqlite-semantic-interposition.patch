@@ -1,0 +1,13 @@
+--- a/third_party/sqlite3/src/moz.build
++++ b/third_party/sqlite3/src/moz.build
+@@ -104,6 +104,11 @@
+ # Suppress warnings in third-party code.
+ if CONFIG['CC_TYPE'] in ('clang', 'gcc'):
+     CFLAGS += [
++        # Keep SQLite's default-visible symbols interposable. With full LTO,
++        # -fno-semantic-interposition can otherwise produce non-PIC
++        # R_X86_64_PC32 relocations when linking libmozsqlite3.so.
++        '-fsemantic-interposition',
+         '-Wno-sign-compare',
+         '-Wno-type-limits',
+     ]
