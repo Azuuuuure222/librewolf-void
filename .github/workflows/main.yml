@@ -145,14 +145,16 @@ jobs:
       - name: setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
 
+      - name: allow xbps user namespaces
+        run: |
+          set -euo pipefail
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: bootstrap xbps-src
         timeout-minutes: 15
         working-directory: void-packages
         run: |
           set -euo pipefail
-          apparmor_userns_restrict="$(sudo sysctl -n kernel.apparmor_restrict_unprivileged_userns)"
-          trap 'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns="$apparmor_userns_restrict" >/dev/null || true' EXIT
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           export PATH="/opt/xbps/usr/bin/:$PATH"
           ./xbps-src -A "$XBPS_TARGET_ARCH" binary-bootstrap
 
