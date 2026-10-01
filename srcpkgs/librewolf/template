@@ -222,6 +222,7 @@ do_build() {
 		LD_LIBRARY_PATH="$PWD/obj/dist/librewolf" \
 		XDG_RUNTIME_DIR="$(mktemp -d "${wrksrc}/pgo-runtime-XXXXXX")" \
 		MOZ_ENABLE_WAYLAND=0 \
+			timeout --foreground 30m \
 			xvfb-run -s "-screen 0 1920x1080x24 -nolisten local" \
 			dbus-run-session -- ./mach python build/pgo/profileserver.py
 
