@@ -2,8 +2,13 @@ name: build
 
 on:
   push:
+    branches:
+      - master
     tags:
       - '*'
+    paths:
+      - srcpkgs/librewolf/**
+      - .github/workflows/main.yml
 
 concurrency:
   group: librewolf-${{ github.ref }}
@@ -84,22 +89,51 @@ jobs:
           esac
 
           distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
-          expected_tag="${version}-${_rev}"
-          [ "${GITHUB_REF_NAME}" = "$expected_tag" ] || {
-            echo "tag ${GITHUB_REF_NAME} does not match package version $expected_tag" >&2
-            exit 1
-          }
+          release_tag="${version}-${_rev}"
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            [ "${GITHUB_REF_NAME}" = "$release_tag" ] || {
+              echo "tag ${GITHUB_REF_NAME} does not match package version $release_tag" >&2
+              exit 1
+            }
+          fi
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "disturl=$disturl" >> "$GITHUB_OUTPUT"
           echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "rev=$_rev" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+      - name: sync release tag
+        if: ${{ github.ref_type == 'branch' && github.ref_name == 'master' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          ref="refs/tags/$TAG"
+          current=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --jq '.object.sha' 2>/dev/null || true)
+
+          if [ "$current" = "$GITHUB_SHA" ]; then
+            echo "$TAG already points to $GITHUB_SHA"
+            exit 0
+          fi
+
+          if [ -n "$current" ]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" \
+              -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="$ref" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+
+          echo "$TAG -> $GITHUB_SHA"
 
       - name: create release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ steps.meta.outputs.release_tag }}
           VERSION: ${{ steps.meta.outputs.version }}
           REV: ${{ steps.meta.outputs.rev }}
         run: |
@@ -180,7 +214,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh release upload "${{ github.ref_name }}" *.xbps *-repodata --clobber
+          gh release upload "${{ steps.meta.outputs.release_tag }}" *.xbps *-repodata --clobber
 
       - name: mark release latest
         env:
@@ -188,4 +222,4 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh release edit "${{ github.ref_name }}" --latest
+          gh release edit "${{ steps.meta.outputs.release_tag }}" --latest
