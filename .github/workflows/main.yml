@@ -79,15 +79,6 @@ jobs:
             exit 1
           }
 
-          disturl="$1"
-          disturl=${disturl//\$\{pkgname\}/$pkgname}
-          disturl=${disturl//\$\{version\}/$version}
-          disturl=${disturl//\$\{_rev\}/$_rev}
-          case "$disturl" in
-            https://*) ;;
-            *) echo "distfile URL must use HTTPS" >&2; exit 1 ;;
-          esac
-
           distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
           release_tag="${version}-${_rev}"
 
@@ -99,7 +90,6 @@ jobs:
           fi
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
-          echo "disturl=$disturl" >> "$GITHUB_OUTPUT"
           echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "rev=$_rev" >> "$GITHUB_OUTPUT"
