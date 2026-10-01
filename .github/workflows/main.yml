@@ -56,6 +56,7 @@ jobs:
   build:
     needs: release
     runs-on: ${{ vars.LIBREWOLF_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 340
     permissions:
       contents: write
     cache-mode: write
@@ -133,6 +134,7 @@ jobs:
           key: librewolf-source-v2-${{ steps.source-meta.outputs.sha256 }}
 
       - name: fetch and verify LibreWolf source
+        timeout-minutes: 20
         env:
           SOURCE_URL: ${{ steps.source-meta.outputs.disturl }}
           SOURCE_FILE: ${{ steps.source-meta.outputs.distfile }}
@@ -190,6 +192,7 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.11
 
       - name: build
+        timeout-minutes: 330
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: sccache
