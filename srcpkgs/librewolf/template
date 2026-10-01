@@ -219,11 +219,15 @@ do_build() {
 
 	rm -f old-configure
 
-	# Full-LTO link preflight: catch known shared-library relocation failures
-	# before spending hours on the PGO instrumentation/use cycle.
+	# The SQLite moz.build override is required when full LTO is combined
+	# with the global -fno-semantic-interposition setting used by this build.
+	# Validate the patch contract here rather than invoking an unsupported
+	# partial mach target that can fail before the real build starts.
 	if [ "$build_option_clang" ] && [ "$build_option_lto" ]; then
-		echo "Preflighting SQLite shared-library link with full LTO..."
-		./mach build config/external/sqlite/target
+		grep -Fq "'-fsemantic-interposition'," third_party/sqlite3/src/moz.build || {
+			echo "SQLite LTO override missing from third_party/sqlite3/src/moz.build" >&2
+			return 1
+		}
 	fi
 
 	if [ "$build_option_pgo" ]; then
