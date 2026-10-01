@@ -112,23 +112,8 @@ jobs:
           TAG: ${{ steps.meta.outputs.release_tag }}
         run: |
           set -euo pipefail
-          ref="refs/tags/$TAG"
-          current=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --jq '.object.sha' 2>/dev/null || true)
-
-          if [ "$current" = "$GITHUB_SHA" ]; then
-            echo "$TAG already points to $GITHUB_SHA"
-            exit 0
-          fi
-
-          if [ -n "$current" ]; then
-            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" \
-              -f sha="$GITHUB_SHA" -F force=true >/dev/null
-          else
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-              -f ref="$ref" -f sha="$GITHUB_SHA" >/dev/null
-          fi
-
-          echo "$TAG -> $GITHUB_SHA"
+          gh auth setup-git
+          git push --force origin "HEAD:refs/tags/$TAG"
 
       - name: create release
         env:
