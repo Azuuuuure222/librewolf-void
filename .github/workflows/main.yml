@@ -30,18 +30,9 @@ jobs:
       - name: free space
         run: |
           set -euo pipefail
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /opt/hostedtoolcache
-          sudo rm -rf /usr/local/graalvm
-          sudo rm -rf /usr/local/share/powershell
-          sudo rm -rf /usr/local/share/chromium
-          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -rf --             /usr/share/dotnet             /usr/share/swift             /usr/local/lib/android             /opt/ghc             /usr/local/.ghcup             /usr/local/share/boost             /opt/hostedtoolcache             /usr/local/graalvm             /usr/local/share/powershell             /usr/local/share/chromium             /usr/local/lib/node_modules
           sudo docker image prune --all --force
+          df -h /
 
       - name: checkout librewolf-void
         uses: actions/checkout@v7
@@ -101,30 +92,6 @@ jobs:
           echo "rev=$_rev" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
 
-      - name: sync release tag
-        if: ${{ github.ref_type == 'branch' && github.ref_name == 'master' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.meta.outputs.release_tag }}
-        run: |
-          set -euo pipefail
-          gh auth setup-git
-          git push --force origin "HEAD:refs/tags/$TAG"
-
-      - name: create release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.meta.outputs.release_tag }}
-          VERSION: ${{ steps.meta.outputs.version }}
-          REV: ${{ steps.meta.outputs.rev }}
-        run: |
-          set -euo pipefail
-          gh release view "$TAG" >/dev/null 2>&1 && exit 0
-          gh release create "$TAG" \
-            --title "librewolf $TAG" \
-            --notes "https://librewolf.dev/librewolf/source/releases/tag/${VERSION}-${REV}" \
-            --latest=false
-
       - name: prepare xbps-static
         run: |
           set -euo pipefail
@@ -139,8 +106,10 @@ jobs:
       - name: install PGO Wayland compositor
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends weston
+          if ! command -v weston >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends weston
+          fi
 
       - name: setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
@@ -195,6 +164,30 @@ jobs:
           set -euo pipefail
           sha256sum -- *.xbps
           sha512sum -- *.xbps
+
+      - name: publish release tag
+        if: ${{ github.ref_type == 'branch' && github.ref_name == 'master' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git push --force origin "HEAD:refs/tags/$TAG"
+
+      - name: create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.release_tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          REV: ${{ steps.meta.outputs.rev }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" >/dev/null 2>&1 && exit 0
+          gh release create "$TAG" \
+            --title "librewolf $TAG" \
+            --notes "https://librewolf.dev/librewolf/source/releases/tag/${VERSION}-${REV}" \
+            --latest=false
 
       - name: upload release assets
         working-directory: void-packages/hostdir/binpkgs/
