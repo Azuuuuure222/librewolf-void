@@ -56,6 +56,12 @@ jobs:
           path: void-packages
           persist-credentials: false
 
+      - name: overlay LibreWolf package into void-packages
+        run: |
+          set -euo pipefail
+          rm -rf void-packages/srcpkgs/librewolf
+          cp -a srcpkgs/librewolf void-packages/srcpkgs/librewolf
+
       - name: prepare package metadata
         id: meta
         run: |
