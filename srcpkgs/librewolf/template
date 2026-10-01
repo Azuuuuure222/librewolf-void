@@ -1,7 +1,7 @@
 # Template file for 'librewolf'
 pkgname=librewolf
 version=157.0
-revision=4
+revision=5
 _rev=1
 wrksrc=${pkgname}-${version}-${_rev}
 build_helper="rust"
@@ -199,6 +199,13 @@ do_build() {
 	export MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE=system
 
 	rm -f old-configure
+
+	# Full-LTO link preflight: catch known shared-library relocation failures
+	# before spending hours on the PGO instrumentation/use cycle.
+	if [ "$build_option_clang" ] && [ "$build_option_lto" ]; then
+		echo "Preflighting SQLite shared-library link with full LTO..."
+		./mach build config/external/sqlite/target
+	fi
 
 	if [ "$build_option_pgo" ]; then
 		cp mozconfig{,.orig}
