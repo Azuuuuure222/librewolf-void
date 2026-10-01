@@ -16,13 +16,15 @@ The package is compiled on GitHub Actions, **not on the target device**. Older C
 
 **PGO + full LTO** are enabled. The build uses LLVM `-O2`, Rust optimization level 2, Skylake tuning, cross-language PGO, and parallel LTO code generation. The goal is efficient runtime behavior on a low-RAM Skylake system rather than maximum benchmark performance.
 
+A SQLite-specific semantic-interposition override preserves correct shared-library relocations under full LTO while keeping the faster global Clang settings elsewhere.
+
 ## CI & source integrity
 
-- LibreWolf source SHA-256 is **mandatory** and must be a valid 64-character digest.
-- Archives are verified before use and again before the package build.
-- Source caching is keyed by the exact SHA-256.
-- A default-branch cache warmer reduces repeated large source downloads.
-- Cold downloads use resumable `curl` with retries and stalled-transfer detection.
+- The package template contains a mandatory 64-character SHA-256 checksum.
+- Void's `xbps-src fetch` performs the normal source download and checksum verification.
+- The exact LibreWolf distfile is cached by its SHA-256, avoiding a second custom downloader.
+- Source fetching has a dedicated 20-minute timeout.
+- The build has separate bootstrap and package timeouts, so infrastructure failures stop early.
 - GitHub Actions uses sccache for compiler caching.
 
 ## Scope
