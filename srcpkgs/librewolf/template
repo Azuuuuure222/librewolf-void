@@ -174,7 +174,6 @@ do_build() {
 	mk_add_options MOZ_DATA_REPORTING=0
 	mk_add_options MOZ_SERVICES_HEALTHREPORT=0
 	mk_add_options MOZ_TELEMETRY_REPORTING=0
-	mk_add_options MOZ_SERVICES_HEALTHREPORT=0
 	!
 
 	if [ -z "$build_option_debug" ]; then
