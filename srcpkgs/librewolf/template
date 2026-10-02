@@ -73,6 +73,7 @@ do_build() {
 	export CXXFLAGS="${CXXFLAGS:-} -O2 -march=skylake -mtune=skylake"
 	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake"
 	export RUSTC_OPT_LEVEL=2
+	export RUSTC_WRAPPER=/usr/bin/sccache
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
 	export LDFLAGS="${LDFLAGS:-} -Wl,-rpath=/usr/lib/librewolf"
@@ -88,6 +89,14 @@ do_build() {
 
 		export ASFLAGS="--target=${XBPS_TRIPLET}"
 	fi
+
+	# xbps-src sanitizes the chroot environment. Restore the sccache cache
+	# settings supplied by CI through the host bind mount.
+	if [ -r /host/sccache-env ]; then
+		. /host/sccache-env
+	fi
+	test -x /usr/bin/sccache
+	/usr/bin/sccache --version
 
 	disable_jemalloc() {
 		echo "ac_add_options --disable-jemalloc"
@@ -112,7 +121,7 @@ do_build() {
 	ac_add_options --target=${XBPS_TRIPLET}
 	ac_add_options --enable-linker=$(vopt_if clang lld bfd)
 	ac_add_options --disable-bootstrap
-	ac_add_options --with-ccache=sccache
+	ac_add_options --with-ccache=/usr/bin/sccache
 	$(vopt_if lto 'ac_add_options --enable-lto=cross,full')
 	$(vopt_if clang 'ac_add_options --with-libclang-path=/usr/lib')
 
