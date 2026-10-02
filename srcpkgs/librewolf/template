@@ -258,9 +258,9 @@ do_build() {
 
 			test -s merged.profdata
 			test -s jarlog
-			mkdir -p /host/pgo-cache
-			cp merged.profdata /host/pgo-cache/merged.profdata
-			cp jarlog /host/pgo-cache/jarlog
+			mkdir -p "$pgo_cache_dir"
+			cp merged.profdata "$pgo_profile_path"
+			cp jarlog "$pgo_jarlog_path"
 		fi
 
 		test -s "$pgo_profile_path"
