@@ -279,6 +279,10 @@ do_build() {
 	./mach build
 }
 
+post_build() {
+	/usr/bin/sccache --show-stats || true
+}
+
 do_install() {
 	export MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE=system
 	export MOZBUILD_STATE_PATH="${wrksrc}/mozbuild"
