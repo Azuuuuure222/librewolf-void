@@ -210,11 +210,11 @@ do_build() {
 
 
 	if [ "$build_option_pgo" ]; then
+		pgo_profile_path=/host/pgo-cache/merged.profdata
+		pgo_jarlog_path=/host/pgo-cache/jarlog
 		cp mozconfig{,.orig}
-		if [ -s /host/pgo-cache/merged.profdata ] && [ -s /host/pgo-cache/jarlog ]; then
+		if [ -s "$pgo_profile_path" ] && [ -s "$pgo_jarlog_path" ]; then
 			echo "Using cached LibreWolf PGO profile."
-			cp /host/pgo-cache/merged.profdata merged.profdata
-			cp /host/pgo-cache/jarlog jarlog
 		else
 			echo "Generating LibreWolf PGO profile."
 			sed -i '\;ac_add_options --enable-lto=;d' mozconfig
@@ -254,13 +254,15 @@ do_build() {
 			cp jarlog /host/pgo-cache/jarlog
 		fi
 
+		test -s "$pgo_profile_path"
+		test -s "$pgo_jarlog_path"
 		./mach clobber objdir
 
 		cp mozconfig{.orig,}
 		cat <<-! >>mozconfig
 		ac_add_options --enable-profile-use=cross
-		ac_add_options --with-pgo-profile-path=\${PWD@Q}/merged.profdata
-		ac_add_options --with-pgo-jarlog=\${PWD@Q}/jarlog
+		ac_add_options --with-pgo-profile-path=\${pgo_profile_path@Q}
+		ac_add_options --with-pgo-jarlog=\${pgo_jarlog_path@Q}
 		!
 	fi
 
