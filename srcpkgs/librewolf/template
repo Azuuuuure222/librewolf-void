@@ -208,40 +208,51 @@ do_build() {
 	rm -f old-configure
 
 
+
 	if [ "$build_option_pgo" ]; then
 		cp mozconfig{,.orig}
-		sed -i '\;ac_add_options --enable-lto=;d' mozconfig
-		echo "ac_add_options --enable-profile-generate=cross" >> mozconfig
-
-		./mach build
-		./mach package
-
-		if [ -f /host/pgo-runtime/wayland-required ]; then
-			test -S /host/pgo-runtime/wayland-1
-			LLVM_PROFDATA=llvm-profdata \
-			JARLOG_FILE="$PWD/jarlog" \
-			GDK_BACKEND=wayland \
-			WAYLAND_DISPLAY=wayland-1 \
-			XDG_RUNTIME_DIR=/host/pgo-runtime \
-			MOZ_ENABLE_WAYLAND=1 \
-			LD_LIBRARY_PATH="$PWD/obj/dist/librewolf" \
-				timeout --foreground 30m \
-				dbus-run-session -- ./mach python build/pgo/profileserver.py
+		if [ -s /host/pgo-cache/merged.profdata ] && [ -s /host/pgo-cache/jarlog ]; then
+			echo "Using cached LibreWolf PGO profile."
+			cp /host/pgo-cache/merged.profdata merged.profdata
+			cp /host/pgo-cache/jarlog jarlog
 		else
-			# Manual/non-CI builds can still generate a useful profile without Weston.
-			LLVM_PROFDATA=llvm-profdata \
-			JARLOG_FILE="$PWD/jarlog" \
-			GDK_BACKEND=x11 \
-			LD_LIBRARY_PATH="$PWD/obj/dist/librewolf" \
-			XDG_RUNTIME_DIR="$(mktemp -d "\${wrksrc}/pgo-runtime-XXXXXX")" \
-			MOZ_ENABLE_WAYLAND=0 \
-				timeout --foreground 30m \
-				xvfb-run -s "-screen 0 1920x1080x24 -nolisten local" \
-				dbus-run-session -- ./mach python build/pgo/profileserver.py
-		fi
+			echo "Generating LibreWolf PGO profile."
+			sed -i '\;ac_add_options --enable-lto=;d' mozconfig
+			echo "ac_add_options --enable-profile-generate=cross" >> mozconfig
 
-		test -s merged.profdata
-		test -s jarlog
+			./mach build
+			./mach package
+
+			if [ -f /host/pgo-runtime/wayland-required ]; then
+				test -S /host/pgo-runtime/wayland-1
+				LLVM_PROFDATA=llvm-profdata \
+				JARLOG_FILE="$PWD/jarlog" \
+				GDK_BACKEND=wayland \
+				WAYLAND_DISPLAY=wayland-1 \
+				XDG_RUNTIME_DIR=/host/pgo-runtime \
+				MOZ_ENABLE_WAYLAND=1 \
+				LD_LIBRARY_PATH="$PWD/obj/dist/librewolf" \
+					timeout --foreground 30m \
+					dbus-run-session -- ./mach python build/pgo/profileserver.py
+			else
+				# Manual/non-CI builds can still generate a useful profile without Weston.
+				LLVM_PROFDATA=llvm-profdata \
+				JARLOG_FILE="$PWD/jarlog" \
+				GDK_BACKEND=x11 \
+				LD_LIBRARY_PATH="$PWD/obj/dist/librewolf" \
+				XDG_RUNTIME_DIR="$(mktemp -d "\${wrksrc}/pgo-runtime-XXXXXX")" \
+				MOZ_ENABLE_WAYLAND=0 \
+					timeout --foreground 30m \
+					xvfb-run -s "-screen 0 1920x1080x24 -nolisten local" \
+					dbus-run-session -- ./mach python build/pgo/profileserver.py
+			fi
+
+			test -s merged.profdata
+			test -s jarlog
+			mkdir -p /host/pgo-cache
+			cp merged.profdata /host/pgo-cache/merged.profdata
+			cp jarlog /host/pgo-cache/jarlog
+		fi
 
 		./mach clobber objdir
 
