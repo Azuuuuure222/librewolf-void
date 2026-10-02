@@ -116,7 +116,6 @@ jobs:
             echo "distfile basename mismatch: expected $expected_template_distfile, got $actual_distfile" >&2
             exit 1
           }
-          }
           release_tag="${version}-${_rev}"
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
