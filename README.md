@@ -12,7 +12,7 @@ The package intentionally trades portability for optimization on the target mach
 - C/C++: `-O2 -march=skylake -mtune=skylake`
 - Rust: Skylake `target-cpu`, SIMD, optimization level 2, Thin LTO
 - Clang + LLVM 22 + LLD
-- Full native cross-language LLVM LTO for the final build
+- Full LLVM LTO for the C/C++ final build with Rust ThinLTO
 - PGO enabled by default; instrumentation omits LTO, final profile-use build restores it
 - Headless Wayland PGO workload through Weston, with X11/Xvfb fallback
 - Parallel LTO code generation
