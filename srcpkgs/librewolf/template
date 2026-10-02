@@ -159,7 +159,6 @@ do_build() {
 
 	# LibreWolf
 	MOZ_APP_REMOTINGNAME=librewolf
-	ac_add_options --disable-debug
 	ac_add_options --disable-default-browser-agent
 	ac_add_options --enable-rust-simd
 
