@@ -7,6 +7,7 @@ on:
     paths:
       - srcpkgs/librewolf/**
       - .github/workflows/main.yml
+      - .github/scripts/**
   workflow_dispatch:
 
 concurrency:
@@ -171,16 +172,10 @@ jobs:
           export PATH="/opt/xbps/usr/bin/:$PATH"
           ./xbps-src -A "$XBPS_TARGET_ARCH" pkg -j"$(nproc)" librewolf
 
-      - name: collect sccache diagnostics and remove credentials
+      - name: remove sccache credentials
         if: ${{ always() }}
         working-directory: void-packages
-        run: |
-          set -euo pipefail
-          if [ -s hostdir/sccache-error.log ]; then
-            echo "===== sccache error log (last 500 lines) ====="
-            tail -n 500 hostdir/sccache-error.log
-          fi
-          rm -f hostdir/sccache-env
+        run: rm -f hostdir/sccache-env
 
       - name: checksum packages
         working-directory: void-packages/hostdir/binpkgs/
