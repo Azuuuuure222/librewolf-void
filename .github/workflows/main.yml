@@ -98,9 +98,14 @@ jobs:
             exit 1
           }
 
-          distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
-          release_tag="${version}-${_rev}"
+          distfile="${distfiles##*/}"
+          expected_distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
+          [ "$distfile" = "$expected_distfile" ] || {
+            echo "distfile basename does not match template version/revision: $distfile != $expected_distfile" >&2
+            exit 1
+          }
 
+          release_tag="${version}-${_rev}-r${revision}"
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
