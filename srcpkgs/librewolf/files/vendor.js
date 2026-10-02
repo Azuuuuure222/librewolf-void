@@ -10,7 +10,6 @@ pref("extensions.autoDisableScopes", 11);
 // Prefer unloading background tabs and issuing memory-pressure notifications
 // before a 4 GB system reaches OOM conditions.
 pref("browser.tabs.unloadOnLowMemory", true);
-pref("browser.lowMemoryResponseMask", 3);
 pref("browser.low_commit_space_threshold_mb", 384);
 pref("browser.low_commit_space_threshold_percent", 10);
 
