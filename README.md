@@ -1,6 +1,22 @@
 # LibreWolf for Void Linux — Skylake / x86_64-musl
 
-Personal, hardware-specific LibreWolf packaging for one real deployment target:
+Personal, hardware-specific LibreWolf packaging for one real deployment target — the **target device** described below.
+
+## Target device specifications
+
+This package is built specifically for this target device:
+
+| Component | Target device specification |
+|---|---|
+| CPU | Intel Core i3-6100U (Skylake), 2 physical cores / 4 threads |
+| RAM | 4 GB DDR3 |
+| Storage | HDD |
+| Graphics/session | Wayland |
+| Operating system | Void Linux x86_64-musl |
+| Architecture | x86_64-musl |
+| CPU tuning baseline | Skylake |
+
+The GitHub Actions runner is **not** the target device; it is only the high-resource build machine. The final LibreWolf binary is optimized for the target device's Skylake CPU and constrained memory/storage environment.
 
 - **OS:** Void Linux x86_64-musl
 - **CPU:** Intel Core i3-6100U / Skylake, 2 cores / 4 threads
