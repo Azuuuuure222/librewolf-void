@@ -4,13 +4,15 @@ set -euo pipefail
 template=${1:?template path required}
 : "${GITHUB_OUTPUT:=}"
 
+bash -n "$template"
 pkgname=$(sed -n 's/^pkgname=//p' "$template")
 version=$(sed -n 's/^version=//p' "$template")
+revision=$(sed -n 's/^revision=//p' "$template")
 _rev=$(sed -n 's/^_rev=//p' "$template")
 checksum=$(sed -n 's/^checksum=//p' "$template")
 distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
 
-: "${pkgname:?}" "${version:?}" "${_rev:?}" "${checksum:?}" "${distfiles:?}"
+: "${pkgname:?}" "${version:?}" "${revision:?}" "${_rev:?}" "${checksum:?}" "${distfiles:?}"
 
 [ "$pkgname" = "librewolf" ] || {
   echo "workflow is only valid for pkgname=librewolf" >&2
@@ -19,6 +21,10 @@ distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
 
 case "$version" in
   ''|*[!A-Za-z0-9._-]*) echo "invalid version: $version" >&2; exit 1 ;;
+esac
+
+case "$revision" in
+  ''|*[!0-9]*) echo "revision must be a positive integer: $revision" >&2; exit 1 ;;
 esac
 
 case "$_rev" in
