@@ -81,6 +81,12 @@ do_build() {
 	unset HOST_CXXFLAGS
 	export LDFLAGS="${LDFLAGS:-} -Wl,-rpath=/usr/lib/librewolf"
 
+	# xbps-src sanitizes the outer CI environment. Restore the GHA-backed
+	# sccache settings through the hostdir bind mount created by CI.
+	if [ -r /host/sccache-env ]; then
+		. /host/sccache-env
+	fi
+
 	if [ "$build_option_clang" ]; then
 		export CC=clang
 		export CXX=clang++
