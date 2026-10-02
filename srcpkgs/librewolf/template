@@ -74,6 +74,9 @@ do_build() {
 	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake"
 	export RUSTC_OPT_LEVEL=2
 	export RUSTC_WRAPPER=/usr/bin/sccache
+	export SCCACHE_DIR=/host/sccache
+	export SCCACHE_CACHE_SIZE=8G
+	mkdir -p "$SCCACHE_DIR"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
 	export LDFLAGS="${LDFLAGS:-} -Wl,-rpath=/usr/lib/librewolf"
