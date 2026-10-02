@@ -42,9 +42,6 @@ desc_option_pgo="Enable Profile-guided Optimization"
 desc_option_clang="Build with clang"
 desc_option_wasi="Build wasm sandboxed libraries"
 
-# we need this because cargo verifies checksums of all files in vendor
-# crates when it builds and gives us no way to override or update the
-# file sanely... so just clear out the file list
 _clear_vendor_checksums() {
 	sed -i 's/\("files":{\)[^}]*/\1/' third_party/rust/$1/.cargo-checksum.json
 }
@@ -177,6 +174,7 @@ do_build() {
 	mk_add_options MOZ_DATA_REPORTING=0
 	mk_add_options MOZ_SERVICES_HEALTHREPORT=0
 	mk_add_options MOZ_TELEMETRY_REPORTING=0
+	mk_add_options MOZ_SERVICES_HEALTHREPORT=0
 	!
 
 	if [ -z "$build_option_debug" ]; then
@@ -197,15 +195,11 @@ do_build() {
 
 	if [ "$build_option_pgo" ]; then
 		cp mozconfig{,.orig}
-		# LTO is only needed for the final PGO-use build; skip it in the
-		# instrumented build to reduce compile and link time.
 		sed -i '\;ac_add_options --enable-lto=;d' mozconfig
 		echo "ac_add_options --enable-profile-generate=cross" >> mozconfig
 
 		./mach build
 		./mach package
-		# Generate the PGO workload through Wayland when Weston is available
-		# on the CI host; keep the X11 path as a local-build fallback.
 		pgo_runtime_dir="$(mktemp -d "${wrksrc}/pgo-runtime-XXXXXX")"
 		chmod 700 "$pgo_runtime_dir"
 		if command -v weston >/dev/null 2>&1; then
@@ -264,8 +258,6 @@ do_build() {
 		!
 	fi
 
-	# Full LTO + PGO are the default target build. Keep LTO at O2: the goal is
-	# resource-efficient runtime code, not maximum code-size/compile-time expansion.
 	if [ "$build_option_clang" ] && { [ "$build_option_lto" ] || [ "$build_option_pgo" ]; }; then
 		lto_jobs="$(nproc)"
 		export LDFLAGS+=" -Wl,--threads=${lto_jobs} -Wl,--lto-O2"
@@ -284,10 +276,13 @@ do_install() {
 	vinstall ${FILESDIR}/librewolf.desktop 644 /usr/share/applications/
 
 	for i in 16x16 32x32 48x48 64x64 128x128; do
-		vinstall ${FILESDIR}/librewolf.desktop 644 /usr/share/applications/ >/dev/null
+		vinstall ${wrksrc}/browser/branding/librewolf/default${i%x*}.png 644 \
+			usr/share/icons/hicolor/${i}/apps librewolf.png
 	done
+
 	rm -rf ${DESTDIR}/usr/{include,lib/firefox-devel,share/idl}
 
 	ln -sf librewolf ${DESTDIR}/usr/lib/librewolf/librewolf-bin
+
 	ln -sf librewolf ${DESTDIR}/usr/bin/librewolf-wayland
 }
