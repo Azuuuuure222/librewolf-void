@@ -22,7 +22,7 @@ esac
 
 _llvmver=22
 hostmakedepends="unzip zip pkg-config perl python3 yasm rust
- cargo llvm${_llvmver} clang${_llvmver} lld${_llvmver} nodejs cbindgen nasm which
+ cargo rust-sccache llvm${_llvmver} clang${_llvmver} lld${_llvmver} nodejs cbindgen nasm which
  tar xz $(vopt_if pgo 'xvfb-run dbus mesa-dri vulkan-loader pciutils')
  $(vopt_if wasi wasi-sdk)"
 makedepends="nss-devel libjpeg-turbo-devel gtk+3-devel
@@ -75,7 +75,8 @@ do_build() {
 	export RUSTC_OPT_LEVEL=2
 	export RUSTC_WRAPPER=/usr/bin/sccache
 	export SCCACHE_DIR=/host/sccache
-	export SCCACHE_CACHE_SIZE=8G
+	export SCCACHE_CACHE_SIZE=16G
+	export SCCACHE_IDLE_TIMEOUT=0
 	mkdir -p "$SCCACHE_DIR"
 	unset HOST_CFLAGS
 	unset HOST_CXXFLAGS
