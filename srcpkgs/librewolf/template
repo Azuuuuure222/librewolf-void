@@ -265,7 +265,7 @@ do_build() {
 		!
 	fi
 
-	if [ "$build_option_clang" ] && { [ "$build_option_lto" ] || [ "$build_option_pgo" ]; }; then
+	if [ "$build_option_clang" ] && [ "$build_option_lto" ]; then
 		lto_jobs="$(nproc)"
 		export LDFLAGS+=" -Wl,--threads=${lto_jobs} -Wl,--lto-O2"
 		export LDFLAGS+=" -Wl,--lto-partitions=${lto_jobs}"
