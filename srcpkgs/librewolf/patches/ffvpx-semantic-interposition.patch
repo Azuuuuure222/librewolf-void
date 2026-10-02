@@ -1,8 +1,0 @@
---- media/ffvpx/ffvpxcommon.mozbuild
-+++ media/ffvpx/ffvpxcommon.mozbuild
-@@ -0,0 +1,4 @@
-+if CONFIG['CC_TYPE'] == 'clang':
-+    # FFvpx is built as shared libraries. With the package-wide
-+    # -fno-semantic-interposition setting, full LTO can otherwise
-+    # emit non-PIC PC-relative relocations for default-visible symbols.
-+    CFLAGS += ['-fsemantic-interposition']
