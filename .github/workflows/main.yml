@@ -77,6 +77,25 @@ jobs:
           set -euo pipefail
           bash .github/scripts/validate-template.sh srcpkgs/librewolf/template
 
+      - name: compute PGO cache key
+        id: pgo-key
+        run: |
+          set -euo pipefail
+          recipe_hash="$(
+            {
+              sha256sum srcpkgs/librewolf/template
+              find srcpkgs/librewolf/patches -type f -print0 | sort -z | xargs -0 sha256sum
+            } | sha256sum | cut -d' ' -f1
+          )"
+          echo "key=librewolf-pgo-\${LIBREWOLF_PGO_CACHE_VERSION}-\${{ steps.meta.outputs.sha256 }}-$recipe_hash" >> "$GITHUB_OUTPUT"
+
+      - name: restore LibreWolf PGO profile
+        id: pgo-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: void-packages/hostdir/pgo-cache
+          key: \${{ steps.pgo-key.outputs.key }}
+
       - name: prepare xbps-static
         run: |
           set -euo pipefail
@@ -89,6 +108,7 @@ jobs:
           rm -f xbps-static-latest.x86_64-musl.tar.xz
 
       - name: install PGO Wayland compositor
+        if: ${{ steps.pgo-cache.outputs.cache-hit != 'true' }}
         run: |
           set -euo pipefail
           if ! command -v weston >/dev/null 2>&1; then
@@ -199,56 +219,44 @@ jobs:
           path: void-packages/hostdir/sources/librewolf-${{ steps.meta.outputs.version }}/${{ steps.meta.outputs.distfile }}
           key: librewolf-source-v4-${{ steps.meta.outputs.sha256 }}
 
-      - name: compute PGO cache key
-        id: pgo-key
-        run: |
-          set -euo pipefail
-          recipe_hash="$(
-            {
-              sha256sum srcpkgs/librewolf/template
-              find srcpkgs/librewolf/patches -type f -print0 | sort -z | xargs -0 sha256sum
-            } | sha256sum | cut -d' ' -f1
-          )"
-          echo "key=librewolf-pgo-\${LIBREWOLF_PGO_CACHE_VERSION}-\${{ steps.meta.outputs.sha256 }}-$recipe_hash" >> "$GITHUB_OUTPUT"
-
-      - name: restore LibreWolf PGO profile
-        id: pgo-cache
-        uses: actions/cache/restore@v6
-        with:
-          path: void-packages/hostdir/pgo-cache
-          key: \${{ steps.pgo-key.outputs.key }}
-
       - name: build package
         timeout-minutes: 330
         working-directory: void-packages
+        env:
+          PGO_CACHE_HIT: ${{ steps.pgo-cache.outputs.cache-hit }}
         run: |
           set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
 
-          pgo_runtime_dir="$PWD/hostdir/pgo-runtime"
-          rm -rf "$pgo_runtime_dir"
-          mkdir -p "$pgo_runtime_dir"
-          chmod 700 "$pgo_runtime_dir"
-
-          weston_pid=""
-          cleanup_weston() {
-            if [ -n "$weston_pid" ]; then
-              kill "$weston_pid" >/dev/null 2>&1 || true
-              wait "$weston_pid" >/dev/null 2>&1 || true
-            fi
+          if [ "$PGO_CACHE_HIT" != "true" ]; then
+            pgo_runtime_dir="$PWD/hostdir/pgo-runtime"
             rm -rf "$pgo_runtime_dir"
-          }
-          trap cleanup_weston EXIT
+            mkdir -p "$pgo_runtime_dir"
+            chmod 700 "$pgo_runtime_dir"
 
-          XDG_RUNTIME_DIR="$pgo_runtime_dir"             weston --backend=headless-backend.so --socket=wayland-1             --idle-time=0 --width=1920 --height=1080             >"$pgo_runtime_dir/weston.log" 2>&1 &
-          weston_pid=$!
+            weston_pid=""
+            cleanup_weston() {
+              if [ -n "$weston_pid" ]; then
+                kill "$weston_pid" >/dev/null 2>&1 || true
+                wait "$weston_pid" >/dev/null 2>&1 || true
+              fi
+              rm -rf "$pgo_runtime_dir"
+            }
+            trap cleanup_weston EXIT
 
-          for _ in $(seq 1 100); do
-            [ -S "$pgo_runtime_dir/wayland-1" ] && break
-            sleep 0.1
-          done
-          test -S "$pgo_runtime_dir/wayland-1"
-          : >"$pgo_runtime_dir/wayland-required"
+            XDG_RUNTIME_DIR="$pgo_runtime_dir" \
+              weston --backend=headless-backend.so --socket=wayland-1 \
+              --idle-time=0 --width=1920 --height=1080 \
+              >"$pgo_runtime_dir/weston.log" 2>&1 &
+            weston_pid=$!
+
+            for _ in $(seq 1 100); do
+              [ -S "$pgo_runtime_dir/wayland-1" ] && break
+              sleep 0.1
+            done
+            test -S "$pgo_runtime_dir/wayland-1"
+            : >"$pgo_runtime_dir/wayland-required"
+          fi
 
           ./xbps-src -A "$XBPS_TARGET_ARCH" pkg -j"$(nproc)" librewolf
 
