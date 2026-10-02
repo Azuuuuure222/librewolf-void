@@ -27,24 +27,26 @@ jobs:
       - name: free space
         run: |
           set -euo pipefail
-          sudo rm -rf -- \
-            /usr/share/dotnet \
-            /usr/share/swift \
-            /usr/local/lib/android \
-            /opt/ghc \
-            /usr/local/.ghcup \
-            /usr/local/share/boost \
-            /opt/hostedtoolcache \
-            /usr/local/graalvm \
-            /usr/local/share/powershell \
-            /usr/local/share/chromium \
-            /usr/local/lib/node_modules
           available_kib=$(df --output=avail -k / | tail -1 | tr -d " ")
-          if command -v docker >/dev/null 2>&1 && [ "$available_kib" -lt $((100 * 1024 * 1024)) ]; then
-            echo "Less than 100 GiB available; pruning Docker images..."
-            sudo docker image prune --all --force
+          if [ "$available_kib" -lt $((90 * 1024 * 1024)) ]; then
+            echo "Less than 90 GiB available; reclaiming runner disk space..."
+            sudo rm -rf -- \
+              /usr/share/dotnet \
+              /usr/share/swift \
+              /usr/local/lib/android \
+              /opt/ghc \
+              /usr/local/.ghcup \
+              /usr/local/share/boost \
+              /opt/hostedtoolcache \
+              /usr/local/graalvm \
+              /usr/local/share/powershell \
+              /usr/local/share/chromium \
+              /usr/local/lib/node_modules
+            if command -v docker >/dev/null 2>&1; then
+              sudo docker image prune --all --force
+            fi
           else
-            echo "Skipping Docker image prune; sufficient free space is available."
+            echo "Skipping runner cleanup; sufficient free space is already available."
           fi
           df -h /
 
@@ -75,17 +77,9 @@ jobs:
           pkgname=$(sed -n 's/^pkgname=//p' "$template")
           version=$(sed -n 's/^version=//p' "$template")
           _rev=$(sed -n 's/^_rev=//p' "$template")
-          revision=$(sed -n 's/^revision=//p' "$template")
           checksum=$(sed -n 's/^checksum=//p' "$template")
           distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
-          : "${pkgname:?}" "${version:?}" "${_rev:?}" "${revision:?}" "${checksum:?}" "${distfiles:?}"
-
-          case "$revision" in
-            ""|*[!0-9]*)
-              echo "template revision must be a non-negative integer" >&2
-              exit 1
-              ;;
-          esac
+          : "${pkgname:?}" "${version:?}" "${_rev:?}" "${checksum:?}" "${distfiles:?}"
 
           printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
             echo "template checksum must be exactly one 64-character SHA-256 digest" >&2
@@ -98,20 +92,13 @@ jobs:
             exit 1
           }
 
-          distfile="${distfiles##*/}"
-          expected_distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
-          [ "$distfile" = "$expected_distfile" ] || {
-            echo "distfile basename does not match template version/revision: $distfile != $expected_distfile" >&2
-            exit 1
-          }
-
-          release_tag="${version}-${_rev}-r${revision}"
+          distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
+          release_tag="${version}-${_rev}"
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "rev=$_rev" >> "$GITHUB_OUTPUT"
-          echo "revision=$revision" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
 
       - name: prepare xbps-static
