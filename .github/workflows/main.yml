@@ -80,10 +80,13 @@ jobs:
           distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
           : "${pkgname:?}" "${version:?}" "${_rev:?}" "${revision:?}" "${checksum:?}" "${distfiles:?}"
 
-          printf '%s\n' "$revision" | grep -Eq '^[0-9]+
-            echo "template revision must be a non-negative integer" >&2
-            exit 1
-          }
+          case "$revision" in
+            ""|*[!0-9]*)
+              echo "template revision must be a non-negative integer" >&2
+              exit 1
+              ;;
+          esac
+
           printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
             echo "template checksum must be exactly one 64-character SHA-256 digest" >&2
             exit 1
