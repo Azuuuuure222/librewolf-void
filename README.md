@@ -249,17 +249,18 @@ merged.profdata
 jarlog
 ```
 
-The cache key includes:
+The exact PGO cache key includes:
 
 - LibreWolf source SHA-256
 - the configured PGO cache version
-- the package template contents
 - all downstream patch contents
+
+Unrelated package-recipe changes do not invalidate the PGO profile automatically. When a compiler flag, linker strategy, PGO workload, toolchain, or another profile-relevant input changes, bump `LIBREWOLF_PGO_CACHE_VERSION` deliberately.
 
 The intent is:
 
 ```text
-same source + same recipe + same patches
+same source + same patches + same PGO cache version
         |
         +--> reuse PGO profile
         |
