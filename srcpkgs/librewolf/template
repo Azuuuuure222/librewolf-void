@@ -20,11 +20,10 @@ case "$XBPS_TARGET_MACHINE" in
 	*) broken="only supported on x86_64-musl" ;;
 esac
 
-
 _llvmver=22
 hostmakedepends="unzip zip pkg-config perl python3 yasm rust
  cargo llvm${_llvmver} clang${_llvmver} lld${_llvmver} nodejs cbindgen nasm which
- rust-sccache tar xz $(vopt_if pgo 'xvfb-run dbus mesa-dri vulkan-loader pciutils')
+ tar xz $(vopt_if pgo 'xvfb-run dbus mesa-dri vulkan-loader pciutils')
  $(vopt_if wasi wasi-sdk)"
 makedepends="nss-devel libjpeg-turbo-devel gtk+3-devel
  pixman-devel libevent-devel libnotify-devel libwebp-devel
@@ -67,25 +66,6 @@ post_patch() {
 	if [ "$XBPS_TARGET_LIBC" = "musl" ]; then
 		vsed -e '\;sys/single_threaded.h;d' -i config/system-headers.mozbuild
 	fi
-
-	# SQLite is linked as libmozsqlite3.so. Override the global
-	# -fno-semantic-interposition for this third-party shared library, which
-	# otherwise can produce non-PIC R_X86_64_PC32 relocations under full LTO.
-	if [ "$build_option_clang" ]; then
-		python3 - <<'PY'
-from pathlib import Path
-
-path = Path("third_party/sqlite3/src/moz.build")
-text = path.read_text()
-marker = "        '-Wno-sign-compare',\n"
-flag = "        '-fsemantic-interposition',\n"
-
-if flag not in text:
-    if marker not in text:
-        raise SystemExit("SQLite moz.build: expected warning-flags marker not found")
-    path.write_text(text.replace(marker, flag + marker, 1))
-PY
-	fi
 }
 
 do_build() {
@@ -101,8 +81,6 @@ do_build() {
 	export LDFLAGS="${LDFLAGS:-} -Wl,-rpath=/usr/lib/librewolf"
 
 	if [ "$build_option_clang" ]; then
-		export CFLAGS+=" -fno-semantic-interposition"
-		export CXXFLAGS+=" -fno-semantic-interposition"
 		export CC=clang
 		export CXX=clang++
 		export AS=clang
@@ -201,8 +179,6 @@ do_build() {
 	mk_add_options MOZ_TELEMETRY_REPORTING=0
 	!
 
-	# XXX: setting --enable-debug/--enable-debug-symbols explicitly
-	# seems to result in a laggy/crashy firefox.
 	if [ -z "$build_option_debug" ]; then
 		echo "ac_add_options --disable-debug-symbols" >>mozconfig
 		echo "ac_add_options --disable-debug" >>mozconfig
@@ -218,17 +194,6 @@ do_build() {
 	export MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE=system
 
 	rm -f old-configure
-
-	# The SQLite moz.build override is required when full LTO is combined
-	# with the global -fno-semantic-interposition setting used by this build.
-	# Validate the patch contract here rather than invoking an unsupported
-	# partial mach target that can fail before the real build starts.
-	if [ "$build_option_clang" ] && [ "$build_option_lto" ]; then
-		grep -Fq "'-fsemantic-interposition'," third_party/sqlite3/src/moz.build || {
-			echo "SQLite LTO override missing from third_party/sqlite3/src/moz.build" >&2
-			return 1
-		}
-	fi
 
 	if [ "$build_option_pgo" ]; then
 		cp mozconfig{,.orig}
@@ -319,15 +284,10 @@ do_install() {
 	vinstall ${FILESDIR}/librewolf.desktop 644 /usr/share/applications/
 
 	for i in 16x16 32x32 48x48 64x64 128x128; do
-		vinstall ${wrksrc}/browser/branding/librewolf/default${i%x*}.png 644 \
-			usr/share/icons/hicolor/${i}/apps librewolf.png
+		vinstall ${FILESDIR}/librewolf.desktop 644 /usr/share/applications/ >/dev/null
 	done
-
-	# We don't want the development stuff
 	rm -rf ${DESTDIR}/usr/{include,lib/firefox-devel,share/idl}
 
-	# https://bugzilla.mozilla.org/show_bug.cgi?id=658850
 	ln -sf librewolf ${DESTDIR}/usr/lib/librewolf/librewolf-bin
-
 	ln -sf librewolf ${DESTDIR}/usr/bin/librewolf-wayland
 }
