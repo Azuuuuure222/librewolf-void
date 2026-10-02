@@ -7,6 +7,7 @@ on:
     paths:
       - srcpkgs/librewolf/**
       - .github/workflows/main.yml
+  workflow_dispatch:
 
 concurrency:
   group: librewolf-${{ github.ref }}
@@ -212,7 +213,7 @@ jobs:
         run: |
           set -euo pipefail
           gh auth setup-git
-          git push origin "HEAD:refs/tags/$TAG"
+          git push --force origin "HEAD:refs/tags/$TAG"
 
       - name: create release
         env:
