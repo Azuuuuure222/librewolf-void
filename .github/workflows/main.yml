@@ -82,9 +82,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: void-packages/hostdir/pgo-cache
+          # PGO validity follows source + downstream patches + this explicit version.
+          # Bump LIBREWOLF_PGO_CACHE_VERSION when profile-relevant build/workload inputs change.
           key: librewolf-pgo-${{ env.LIBREWOLF_PGO_CACHE_VERSION }}-${{ steps.meta.outputs.sha256 }}-${{ hashFiles('srcpkgs/librewolf/patches/**') }}
-          restore-keys: |
-            librewolf-pgo-${{ env.LIBREWOLF_PGO_CACHE_VERSION }}-${{ steps.meta.outputs.sha256 }}-
 
       - name: check LibreWolf PGO profile
         id: pgo-state
