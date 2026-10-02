@@ -25,7 +25,6 @@ jobs:
       XBPS_TARGET_ARCH: x86_64-musl
       SCCACHE_GHA_ENABLED: "on"
       SCCACHE_GHA_VERSION: "librewolf-x86_64-musl-skylake-v1"
-      ACTIONS_CACHE_SERVICE_V2: "true"
     steps:
       - name: free space
         run: |
@@ -137,11 +136,8 @@ jobs:
               [
                 `export SCCACHE_GHA_ENABLED=${quote(process.env.SCCACHE_GHA_ENABLED)}`,
                 `export SCCACHE_GHA_VERSION=${quote(process.env.SCCACHE_GHA_VERSION)}`,
-                "export ACTIONS_CACHE_SERVICE_V2=true",
                 `export ACTIONS_RESULTS_URL=${quote(cacheUrl)}`,
                 `export ACTIONS_RUNTIME_TOKEN=${quote(runtimeToken)}`,
-                `export SCCACHE_GHA_CACHE_URL=${quote(cacheUrl)}`,
-                `export SCCACHE_GHA_RUNTIME_TOKEN=${quote(runtimeToken)}`,
                 "export SCCACHE_MULTILEVEL_CHAIN=disk,gha",
                 "export SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore",
               ].join("\n") + "\n",

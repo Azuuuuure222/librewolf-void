@@ -76,6 +76,7 @@ do_build() {
 	export RUSTC_WRAPPER=/usr/bin/sccache
 	export SCCACHE_DIR=/host/sccache
 	export SCCACHE_CACHE_SIZE=16G
+	export SCCACHE_CACHE_ZSTD_LEVEL=1
 	export SCCACHE_IDLE_TIMEOUT=0
 	mkdir -p "$SCCACHE_DIR"
 	unset HOST_CFLAGS
