@@ -79,7 +79,7 @@ The workflow:
 
 Build, bootstrap, fetch, and PGO stages have explicit time limits. Workflow concurrency cancels obsolete builds.
 
-Release tags include the LibreWolf source revision and Void package revision (for example, `157.0-1-r6`); tag pushes do not trigger another full build.
+Release tags use the LibreWolf source version and source revision (for example, `157.0-1`); tag pushes do not trigger another full build.
 
 ## Release and packaging model
 
