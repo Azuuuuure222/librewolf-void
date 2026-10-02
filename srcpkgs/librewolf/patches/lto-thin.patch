@@ -1,8 +1,7 @@
-diff --git a/config/makefiles/rust.mk b/config/makefiles/rust.mk
-index efbe482738..c5d125b10d 100644
+set rust crate lto to thin to not use fatlto for gkrust which fails sometimes
 --- a/config/makefiles/rust.mk
 +++ b/config/makefiles/rust.mk
-@@ -92,7 +92,8 @@ ifndef rustflags_sancov
+@@ -92,7 +92,7 @@
  # Never enable when coverage is enabled to work around https://github.com/rust-lang/rust/issues/90045.
  ifndef MOZ_CODE_COVERAGE
  ifeq (,$(findstring gkrust_gtest,$(RUST_LIBRARY_FILE)))
