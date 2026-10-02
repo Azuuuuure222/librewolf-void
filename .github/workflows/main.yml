@@ -116,6 +116,13 @@ jobs:
           export PATH="/opt/xbps/usr/bin/:$PATH"
           ./xbps-src -A "$XBPS_TARGET_ARCH" binary-bootstrap
 
+      - name: save Void binary package cache
+        if: ${{ steps.xbps-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: void-packages/hostdir/repocache-${{ env.XBPS_TARGET_ARCH }}
+          key: void-repocache-v1-${{ env.XBPS_TARGET_ARCH }}-${{ hashFiles('void-packages/xbps-src', 'void-packages/srcpkgs/base-chroot/template') }}
+
       - name: prepare sccache environment
         uses: actions/github-script@v9
         with:
@@ -251,13 +258,6 @@ jobs:
         with:
           path: void-packages/hostdir/pgo-cache
           key: \${{ steps.pgo-key.outputs.key }}
-
-      - name: save Void binary package cache
-        if: ${{ always() && steps.xbps-cache.outputs.cache-hit != 'true' && hashFiles('void-packages/hostdir/repocache-${{ env.XBPS_TARGET_ARCH }}') != '' }}
-        uses: actions/cache/save@v6
-        with:
-          path: void-packages/hostdir/repocache-${{ env.XBPS_TARGET_ARCH }}
-          key: void-repocache-v1-${{ env.XBPS_TARGET_ARCH }}-${{ hashFiles('void-packages/xbps-src', 'void-packages/srcpkgs/base-chroot/template') }}
 
       - name: remove sccache credentials
         if: ${{ always() }}
