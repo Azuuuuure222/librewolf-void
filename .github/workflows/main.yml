@@ -22,8 +22,8 @@ jobs:
     timeout-minutes: 340
     env:
       XBPS_TARGET_ARCH: x86_64-musl
-      SCCACHE_GHA_ENABLED: "true"
-      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "on"
+      SCCACHE_GHA_VERSION: "librewolf-x86_64-musl-skylake-v1"
     steps:
       - name: free space
         run: |
@@ -82,6 +82,17 @@ jobs:
           distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
           : "${pkgname:?}" "${version:?}" "${_rev:?}" "${checksum:?}" "${distfiles:?}"
 
+          [ "$pkgname" = "librewolf" ] || {
+            echo "workflow is only valid for pkgname=librewolf" >&2
+            exit 1
+          }
+          case "$version" in
+            ''|*[!A-Za-z0-9._-]*) echo "invalid version: $version" >&2; exit 1 ;;
+          esac
+          case "$_rev" in
+            ''|*[!0-9]*) echo "_rev must be a non-negative integer: $_rev" >&2; exit 1 ;;
+          esac
+
           printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
             echo "template checksum must be exactly one 64-character SHA-256 digest" >&2
             exit 1
@@ -93,6 +104,16 @@ jobs:
             exit 1
           }
 
+          case "$1" in
+            https://*) ;;
+            *) echo "distfile must use HTTPS: $1" >&2; exit 1 ;;
+          esac
+
+          actual_distfile="${1##*/}"
+          [ "$actual_distfile" = "$distfile" ] || {
+            echo "distfile basename mismatch: expected $distfile, got $actual_distfile" >&2
+            exit 1
+          }
           distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
           release_tag="${version}-${_rev}"
 
@@ -121,9 +142,6 @@ jobs:
             sudo apt-get install -y --no-install-recommends weston
           fi
 
-      - name: setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.11
-
       - name: allow xbps user namespaces
         run: |
           set -euo pipefail
@@ -137,27 +155,22 @@ jobs:
           export PATH="/opt/xbps/usr/bin/:$PATH"
           ./xbps-src -A "$XBPS_TARGET_ARCH" binary-bootstrap
 
-      - name: provision CI sccache in xbps masterdir
+      - name: configure sccache inside xbps chroot
         working-directory: void-packages
         run: |
           set -euo pipefail
-          test -x "$SCCACHE_PATH"
-          install -D -m 0755 "$SCCACHE_PATH" masterdir/usr/bin/sccache
-          masterdir/usr/bin/sccache --version
-
-      - name: provision sccache GHA environment
-        working-directory: void-packages
-        run: |
-          set -euo pipefail
-          : "${SCCACHE_GHA_ENABLED:?}" "${ACTIONS_RESULTS_URL:?}" "${ACTIONS_RUNTIME_TOKEN:?}" "${ACTIONS_CACHE_SERVICE_V2:?}"
+          : "${SCCACHE_GHA_ENABLED:?}" "${SCCACHE_GHA_VERSION:?}" "${ACTIONS_RESULTS_URL:?}" "${ACTIONS_RUNTIME_TOKEN:?}"
           umask 077
           {
             printf 'export SCCACHE_GHA_ENABLED=%q\n' "$SCCACHE_GHA_ENABLED"
+            printf 'export SCCACHE_GHA_VERSION=%q\n' "$SCCACHE_GHA_VERSION"
             printf 'export ACTIONS_RESULTS_URL=%q\n' "$ACTIONS_RESULTS_URL"
             printf 'export ACTIONS_RUNTIME_TOKEN=%q\n' "$ACTIONS_RUNTIME_TOKEN"
-            printf 'export ACTIONS_CACHE_SERVICE_V2=%q\n' "$ACTIONS_CACHE_SERVICE_V2"
+            printf 'export SCCACHE_MULTILEVEL_CHAIN=disk,gha\n'
+            printf 'export SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore\n'
+            printf 'export SCCACHE_CLIENT_SIDE=1\n'
+            printf 'export SCCACHE_ERROR_LOG=/host/sccache-error.log\n'
           } > hostdir/sccache-env
-
 
       - name: restore LibreWolf source
         id: source-cache
@@ -205,10 +218,17 @@ jobs:
           export PATH="/opt/xbps/usr/bin/:$PATH"
           ./xbps-src -A "$XBPS_TARGET_ARCH" pkg -j"$(nproc)" librewolf
 
-      - name: remove sccache credentials
+      - name: collect sccache diagnostics and remove credentials
         if: ${{ always() }}
         working-directory: void-packages
-        run: rm -f hostdir/sccache-env
+        run: |
+          set -euo pipefail
+          if [ -s hostdir/sccache-error.log ]; then
+            echo "===== sccache error log (last 500 lines) ====="
+            tail -n 500 hostdir/sccache-error.log
+          fi
+          rm -f hostdir/sccache-env
+
       - name: checksum packages
         working-directory: void-packages/hostdir/binpkgs/
         run: |
