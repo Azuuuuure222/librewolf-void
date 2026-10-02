@@ -82,8 +82,22 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: void-packages/hostdir/pgo-cache
-          key: librewolf-pgo-${{ env.LIBREWOLF_PGO_CACHE_VERSION }}-${{ steps.meta.outputs.sha256 }}-${{ hashFiles('srcpkgs/librewolf/template', 'srcpkgs/librewolf/patches/**') }}
+          key: librewolf-pgo-${{ env.LIBREWOLF_PGO_CACHE_VERSION }}-${{ steps.meta.outputs.sha256 }}-${{ hashFiles('srcpkgs/librewolf/patches/**') }}
+          restore-keys: |
+            librewolf-pgo-${{ env.LIBREWOLF_PGO_CACHE_VERSION }}-${{ steps.meta.outputs.sha256 }}-
 
+      - name: check LibreWolf PGO profile
+        id: pgo-state
+        run: |
+          set -euo pipefail
+          profile_dir=void-packages/hostdir/pgo-cache
+          if [ -s "$profile_dir/merged.profdata" ] && [ -s "$profile_dir/jarlog" ]; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            echo "Reusable LibreWolf PGO profile found."
+          else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+            echo "No complete LibreWolf PGO profile found."
+          fi
       - name: prepare xbps-static
         run: |
           set -euo pipefail
@@ -96,7 +110,7 @@ jobs:
           rm -f xbps-static-latest.x86_64-musl.tar.xz
 
       - name: install PGO Wayland compositor
-        if: ${{ steps.pgo-cache.outputs.cache-hit != 'true' }}
+        if: ${{ steps.pgo-state.outputs.hit != 'true' }}
         run: |
           set -euo pipefail
           if ! command -v weston >/dev/null 2>&1; then
@@ -211,7 +225,7 @@ jobs:
         timeout-minutes: 330
         working-directory: void-packages
         env:
-          PGO_CACHE_HIT: ${{ steps.pgo-cache.outputs.cache-hit }}
+          PGO_CACHE_HIT: ${{ steps.pgo-state.outputs.hit }}
         run: |
           set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
@@ -249,11 +263,11 @@ jobs:
           ./xbps-src -A "$XBPS_TARGET_ARCH" pkg -j"$(nproc)" librewolf
 
       - name: save LibreWolf PGO profile
-        if: ${{ always() && steps.pgo-cache.outputs.cache-hit != 'true' && hashFiles('void-packages/hostdir/pgo-cache/merged.profdata', 'void-packages/hostdir/pgo-cache/jarlog') != '' }}
+        if: ${{ always() && steps.pgo-state.outputs.hit != 'true' && hashFiles('void-packages/hostdir/pgo-cache/merged.profdata', 'void-packages/hostdir/pgo-cache/jarlog') != '' }}
         uses: actions/cache/save@v6
         with:
           path: void-packages/hostdir/pgo-cache
-          key: librewolf-pgo-${{ env.LIBREWOLF_PGO_CACHE_VERSION }}-${{ steps.meta.outputs.sha256 }}-${{ hashFiles('srcpkgs/librewolf/template', 'srcpkgs/librewolf/patches/**') }}
+          key: librewolf-pgo-${{ env.LIBREWOLF_PGO_CACHE_VERSION }}-${{ steps.meta.outputs.sha256 }}-${{ hashFiles('srcpkgs/librewolf/patches/**') }}
 
       - name: remove sccache credentials
         if: ${{ always() }}
