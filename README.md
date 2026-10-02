@@ -127,6 +127,7 @@ The workflow:
 8. bootstraps the xbps masterdir
 9. exposes the GitHub Actions cache runtime to the chroot
 10. restores or fetches and verifies the LibreWolf source
+11. saves the verified source on a cache miss
 12. runs the full PGO/LTO package build
 13. checksums the generated package and repository metadata
 14. updates the source-version release tag and publishes the successful build
