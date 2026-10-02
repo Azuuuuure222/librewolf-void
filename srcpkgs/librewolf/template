@@ -75,7 +75,11 @@ do_build() {
 	export RUSTC_OPT_LEVEL=2
 	export RUSTC_WRAPPER=/usr/bin/sccache
 	export SCCACHE_CLIENT_SIDE=false
-	export SCCACHE_DIR=/host/sccache
+	if [ -d /host ] && [ -w /host ]; then
+		export SCCACHE_DIR=/host/sccache
+	else
+		export SCCACHE_DIR="${wrksrc}/sccache"
+	fi
 	export SCCACHE_CACHE_SIZE=16G
 	export SCCACHE_CACHE_ZSTD_LEVEL=1
 	export SCCACHE_IDLE_TIMEOUT=0
@@ -210,8 +214,13 @@ do_build() {
 
 
 	if [ "$build_option_pgo" ]; then
-		pgo_profile_path=/host/pgo-cache/merged.profdata
-		pgo_jarlog_path=/host/pgo-cache/jarlog
+		if [ -d /host ] && [ -w /host ]; then
+			pgo_cache_dir=/host/pgo-cache
+		else
+			pgo_cache_dir="${wrksrc}/pgo-cache"
+		fi
+		pgo_profile_path="$pgo_cache_dir/merged.profdata"
+		pgo_jarlog_path="$pgo_cache_dir/jarlog"
 		cp mozconfig{,.orig}
 		if [ -s "$pgo_profile_path" ] && [ -s "$pgo_jarlog_path" ]; then
 			echo "Using cached LibreWolf PGO profile."
@@ -259,11 +268,11 @@ do_build() {
 		./mach clobber objdir
 
 		cp mozconfig{.orig,}
-		cat <<-! >>mozconfig
-		ac_add_options --enable-profile-use=cross
-		ac_add_options --with-pgo-profile-path=\${pgo_profile_path@Q}
-		ac_add_options --with-pgo-jarlog=\${pgo_jarlog_path@Q}
-		!
+		printf '%s\n' \
+			"ac_add_options --enable-profile-use=cross" \
+			"ac_add_options --with-pgo-profile-path=${pgo_profile_path@Q}" \
+			"ac_add_options --with-pgo-jarlog=${pgo_jarlog_path@Q}" \
+			>>mozconfig
 	fi
 
 	if [ "$build_option_clang" ] && [ "$build_option_lto" ]; then
