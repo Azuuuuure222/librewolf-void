@@ -24,6 +24,7 @@ jobs:
       XBPS_TARGET_ARCH: x86_64-musl
       SCCACHE_GHA_ENABLED: "on"
       SCCACHE_GHA_VERSION: "librewolf-x86_64-musl-skylake-v1"
+      SCCACHE_GHA_RW_MODE: "READ_WRITE"
     steps:
       - name: free space
         run: |
@@ -70,59 +71,11 @@ jobs:
           rm -rf void-packages/srcpkgs/librewolf
           cp -a srcpkgs/librewolf void-packages/srcpkgs/librewolf
 
-      - name: prepare package metadata
+      - name: validate and prepare package metadata
         id: meta
         run: |
           set -euo pipefail
-          template="srcpkgs/librewolf/template"
-          pkgname=$(sed -n 's/^pkgname=//p' "$template")
-          version=$(sed -n 's/^version=//p' "$template")
-          _rev=$(sed -n 's/^_rev=//p' "$template")
-          checksum=$(sed -n 's/^checksum=//p' "$template")
-          distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
-          : "${pkgname:?}" "${version:?}" "${_rev:?}" "${checksum:?}" "${distfiles:?}"
-
-          [ "$pkgname" = "librewolf" ] || {
-            echo "workflow is only valid for pkgname=librewolf" >&2
-            exit 1
-          }
-          case "$version" in
-            ''|*[!A-Za-z0-9._-]*) echo "invalid version: $version" >&2; exit 1 ;;
-          esac
-          case "$_rev" in
-            ''|*[!0-9]*) echo "_rev must be a non-negative integer: $_rev" >&2; exit 1 ;;
-          esac
-
-          printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
-            echo "template checksum must be exactly one 64-character SHA-256 digest" >&2
-            exit 1
-          }
-
-          set -- $distfiles
-          [ "$#" -eq 1 ] || {
-            echo "template must contain exactly one distfile URL" >&2
-            exit 1
-          }
-
-          case "$1" in
-            https://*) ;;
-            *) echo "distfile must use HTTPS: $1" >&2; exit 1 ;;
-          esac
-
-          distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
-          expected_template_distfile='${pkgname}-${version}-${_rev}.source.tar.gz'
-          actual_distfile="${1##*/}"
-          [ "$actual_distfile" = "$expected_template_distfile" ] || {
-            echo "distfile basename mismatch: expected $expected_template_distfile, got $actual_distfile" >&2
-            exit 1
-          }
-          release_tag="${version}-${_rev}"
-
-          echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
-          echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "rev=$_rev" >> "$GITHUB_OUTPUT"
-          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          bash .github/scripts/validate-template.sh srcpkgs/librewolf/template
 
       - name: prepare xbps-static
         run: |
@@ -170,7 +123,6 @@ jobs:
             printf 'export SCCACHE_MULTILEVEL_CHAIN=disk,gha\n'
             printf 'export SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore\n'
             printf 'export SCCACHE_CLIENT_SIDE=1\n'
-            printf 'export SCCACHE_ERROR_LOG=/host/sccache-error.log\n'
           } > hostdir/sccache-env
 
       - name: restore LibreWolf source
