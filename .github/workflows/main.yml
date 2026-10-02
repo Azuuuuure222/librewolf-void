@@ -109,12 +109,12 @@ jobs:
             *) echo "distfile must use HTTPS: $1" >&2; exit 1 ;;
           esac
 
+          distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
           actual_distfile="${1##*/}"
           [ "$actual_distfile" = "$distfile" ] || {
             echo "distfile basename mismatch: expected $distfile, got $actual_distfile" >&2
             exit 1
           }
-          distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
           release_tag="${version}-${_rev}"
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
