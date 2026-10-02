@@ -80,7 +80,7 @@ jobs:
           distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
           : "${pkgname:?}" "${version:?}" "${_rev:?}" "${revision:?}" "${checksum:?}" "${distfiles:?}"
 
-          printf '%s\\n' "$revision" | grep -Eq '^[0-9]+$' || {
+          printf '%s\n' "$revision" | grep -Eq '^[0-9]+ || {
             echo "template revision must be a non-negative integer" >&2
             exit 1
           }
@@ -253,12 +253,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh release edit "${{ steps.meta.outputs.release_tag }}" --latest
- || {
+          gh release edit "${{ steps.meta.outputs.release_tag }}" --latest || {
             echo "template revision must be a non-negative integer" >&2
             exit 1
           }
-
           printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
             echo "template checksum must be exactly one 64-character SHA-256 digest" >&2
             exit 1
@@ -270,14 +268,20 @@ jobs:
             exit 1
           }
 
-          distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
-          release_tag="${version}-${_rev}"
+          distfile="${distfiles##*/}"
+          expected_distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
+          [ "$distfile" = "$expected_distfile" ] || {
+            echo "distfile basename does not match template version/revision: $distfile != $expected_distfile" >&2
+            exit 1
+          }
 
+          release_tag="${version}-${_rev}-r${revision}"
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "rev=$_rev" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
 
       - name: prepare xbps-static
@@ -373,8 +377,16 @@ jobs:
         working-directory: void-packages/hostdir/binpkgs/
         run: |
           set -euo pipefail
-          sha256sum -- *.xbps
-          sha512sum -- *.xbps
+          compgen -G '*.xbps' >/dev/null || {
+            echo "no XBPS packages were produced" >&2
+            exit 1
+          }
+          compgen -G '*-repodata' >/dev/null || {
+            echo "no repository metadata was produced" >&2
+            exit 1
+          }
+          sha256sum -- *.xbps *-repodata
+          sha512sum -- *.xbps *-repodata
 
       - name: publish release tag
         env:
@@ -383,7 +395,7 @@ jobs:
         run: |
           set -euo pipefail
           gh auth setup-git
-          git push --force origin "HEAD:refs/tags/$TAG"
+          git push origin "HEAD:refs/tags/$TAG"
 
       - name: create release
         env:
