@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - master
-    tags:
-      - '*'
     paths:
       - srcpkgs/librewolf/**
       - .github/workflows/main.yml
@@ -131,24 +129,39 @@ jobs:
         id: source-cache
         uses: actions/cache/restore@v6
         with:
-          path: void-packages/hostdir/sources/${{ steps.meta.outputs.distfile }}
-          key: librewolf-source-v3-${{ steps.meta.outputs.sha256 }}
+          path: void-packages/hostdir/sources/librewolf-${{ steps.meta.outputs.version }}/${{ steps.meta.outputs.distfile }}
+          key: librewolf-source-v4-${{ steps.meta.outputs.sha256 }}
 
       - name: fetch and verify LibreWolf source
         timeout-minutes: 20
         working-directory: void-packages
+        env:
+          DISTFILE: ${{ steps.meta.outputs.distfile }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA256: ${{ steps.meta.outputs.sha256 }}
         run: |
           set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
-          mkdir -p hostdir/sources
-          ./xbps-src -A "$XBPS_TARGET_ARCH" fetch librewolf
+          srcdir="hostdir/sources/librewolf-${VERSION}"
+          distfile="${srcdir}/${DISTFILE}"
+          mkdir -p "$srcdir"
+
+          if [ "${{ steps.source-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "LibreWolf source cache hit; verifying cached archive..."
+            printf '%s  %s\n' "$SHA256" "$distfile" | sha256sum --check --status -
+          else
+            echo "LibreWolf source cache miss; fetching through xbps-src..."
+            ./xbps-src -A "$XBPS_TARGET_ARCH" fetch librewolf
+            test -s "$distfile"
+            printf '%s  %s\n' "$SHA256" "$distfile" | sha256sum --check --status -
+          fi
 
       - name: save LibreWolf source
         if: ${{ steps.source-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v6
         with:
-          path: void-packages/hostdir/sources/${{ steps.meta.outputs.distfile }}
-          key: librewolf-source-v3-${{ steps.meta.outputs.sha256 }}
+          path: void-packages/hostdir/sources/librewolf-${{ steps.meta.outputs.version }}/${{ steps.meta.outputs.distfile }}
+          key: librewolf-source-v4-${{ steps.meta.outputs.sha256 }}
 
       - name: build package
         timeout-minutes: 330
