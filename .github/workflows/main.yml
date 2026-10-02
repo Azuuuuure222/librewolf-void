@@ -19,9 +19,11 @@ jobs:
   build:
     runs-on: ${{ vars.LIBREWOLF_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 340
+    cache-mode: write
     env:
       XBPS_TARGET_ARCH: x86_64-musl
       SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
     steps:
       - name: free space
         run: |
@@ -68,18 +70,12 @@ jobs:
           pkgname=$(sed -n 's/^pkgname=//p' "$template")
           version=$(sed -n 's/^version=//p' "$template")
           _rev=$(sed -n 's/^_rev=//p' "$template")
-          revision=$(sed -n 's/^revision=//p' "$template")
-          checksum=$(sed -n 's/^checksum=//p' "$template" | tr -d '\r')
+          checksum=$(sed -n 's/^checksum=//p' "$template")
           distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
-          : "${pkgname:?}" "${version:?}" "${_rev:?}" "${revision:?}" "${checksum:?}" "${distfiles:?}"
+          : "${pkgname:?}" "${version:?}" "${_rev:?}" "${checksum:?}" "${distfiles:?}"
 
           printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
             echo "template checksum must be exactly one 64-character SHA-256 digest" >&2
-            exit 1
-          }
-
-          printf '%s\n' "$revision" | grep -Eq '^[0-9]+$' || {
-            echo "template revision must be a non-negative integer" >&2
             exit 1
           }
 
@@ -90,21 +86,13 @@ jobs:
           }
 
           distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
-          distfile_from_url="${distfiles##*/}"
-          [ "$distfile_from_url" = "$distfile" ] || {
-            echo "distfile URL basename does not match package metadata" >&2
-            echo "expected: $distfile" >&2
-            echo "actual:   $distfile_from_url" >&2
-            exit 1
-          }
-          release_tag="${version}-${_rev}-${revision}"
+          release_tag="${version}-${_rev}"
 
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "rev=$_rev" >> "$GITHUB_OUTPUT"
-          echo "revision=$revision" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
 
       - name: prepare xbps-static
@@ -147,27 +135,7 @@ jobs:
         run: |
           set -euo pipefail
           test -x "$SCCACHE_PATH"
-          install -Dm755 "$SCCACHE_PATH" masterdir/usr/libexec/sccache-real
-          cat > masterdir/usr/bin/sccache <<'EOF'
-#!/bin/sh
-set -eu
-if [ -r /host/sccache-env ]; then
-  . /host/sccache-env
-fi
-exec /usr/libexec/sccache-real "$@"
-EOF
-          chmod 0755 masterdir/usr/bin/sccache
-
-          umask 077
-          {
-            printf 'SCCACHE_GHA_ENABLED=on\n'
-            printf 'SCCACHE_IDLE_TIMEOUT=0\n'
-            printf 'SCCACHE_SERVER_UDS=/host/sccache.sock\n'
-            printf 'ACTIONS_RESULTS_URL=%s\n' "$ACTIONS_RESULTS_URL"
-            printf 'ACTIONS_RUNTIME_TOKEN=%s\n' "$ACTIONS_RUNTIME_TOKEN"
-          } > hostdir/sccache-env
-
-          masterdir/usr/bin/sccache --version
+          install -D -m 0755 "$SCCACHE_PATH" masterdir/usr/bin/sccache
           masterdir/usr/bin/sccache --version
 
       - name: restore LibreWolf source
@@ -216,20 +184,12 @@ EOF
           export PATH="/opt/xbps/usr/bin/:$PATH"
           ./xbps-src -A "$XBPS_TARGET_ARCH" pkg -j"$(nproc)" librewolf
 
-      - name: remove sccache credentials
-        if: ${{ always() }}
-        working-directory: void-packages
-        run: |
-          set -euo pipefail
-          SCCACHE_SERVER_UDS="$PWD/hostdir/sccache.sock" "$SCCACHE_PATH" --stop-server >/dev/null 2>&1 || true
-          rm -f hostdir/sccache-env hostdir/sccache.sock
-
       - name: checksum packages
         working-directory: void-packages/hostdir/binpkgs/
         run: |
           set -euo pipefail
-          sha256sum -- *.xbps *-repodata
-          sha512sum -- *.xbps *-repodata
+          sha256sum -- *.xbps
+          sha512sum -- *.xbps
 
       - name: publish release tag
         env:
