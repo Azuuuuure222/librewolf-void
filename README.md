@@ -76,11 +76,11 @@ The build machine can therefore spend CPU time aggressively during CI without ma
 
 ### sccache
 
-The build uses Mozilla's sccache action and places the sccache binary inside the xbps masterdir so the Firefox build can invoke it from the chroot.
+The build uses Void's package-managed `rust-sccache` inside the xbps masterdir. This is deliberate: `xbps-src` can clean and reconstruct the masterdir during dependency resolution, so copying an unmanaged binary into `masterdir/usr/bin` is not durable.
 
-The workflow also passes the GitHub Actions cache backend into Void's `/host` bind mount. This lets the chrooted build use the GitHub-backed sccache service instead of silently losing the cache boundary at the xbps chroot.
+The chroot receives the GitHub Actions cache credentials through Void's `/host` bind mount. sccache is configured as a two-level cache: a fast local disk cache first, followed by the GitHub Actions cache as the persistent remote level. This lets PGO and the final profile-use build reuse local results immediately while allowing later workflow runs to reuse compatible compiler results remotely.
 
-A bounded local cache directory is retained for the host-side build environment.
+The local cache is bounded at 16 GiB, the sccache client-side mode is enabled to keep compilation overhead low, and cache write failures are treated as non-fatal so a cache service problem cannot break the browser build.
 
 ## Runtime tuning
 
