@@ -123,7 +123,6 @@ jobs:
             printf 'export ACTIONS_RUNTIME_TOKEN=%q\n' "$ACTIONS_RUNTIME_TOKEN"
             printf 'export SCCACHE_MULTILEVEL_CHAIN=disk,gha\n'
             printf 'export SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore\n'
-            printf 'export SCCACHE_CLIENT_SIDE=1\n'
           } > hostdir/sccache-env
 
       - name: restore LibreWolf source
