@@ -23,8 +23,8 @@ pref("browser.newtab.preload", false);
 pref("browser.cache.disk.max_chunks_memory_usage", 16384);
 pref("browser.cache.disk.max_priority_chunks_memory_usage", 16384);
 
-// Four hardware threads / 4 GB RAM: limit process fan-out and avoid
-// prelaunching several idle content processes.
+// Four hardware threads / 4 GB RAM: reduce the shared web-content process
+// pool and keep only one prelaunched Fission content process.
 pref("dom.ipc.processCount", 4);
 pref("dom.ipc.processPrelaunch.fission.number", 1);
 
