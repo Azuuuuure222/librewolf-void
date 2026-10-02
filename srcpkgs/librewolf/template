@@ -93,11 +93,6 @@ do_build() {
 		export ASFLAGS="--target=${XBPS_TRIPLET}"
 	fi
 
-	# xbps-src sanitizes the chroot environment. Restore the sccache cache
-	# settings supplied by CI through the host bind mount.
-	if [ -r /host/sccache-env ]; then
-		. /host/sccache-env
-	fi
 	test -x /usr/bin/sccache
 	/usr/bin/sccache --version
 
