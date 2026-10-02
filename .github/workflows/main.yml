@@ -23,7 +23,6 @@ jobs:
     env:
       XBPS_TARGET_ARCH: x86_64-musl
       SCCACHE_GHA_ENABLED: "true"
-      SCCACHE_SERVER_UDS: ${{ github.workspace }}/void-packages/hostdir/sccache.sock
       RUSTC_WRAPPER: sccache
     steps:
       - name: free space
@@ -71,23 +70,18 @@ jobs:
           pkgname=$(sed -n 's/^pkgname=//p' "$template")
           version=$(sed -n 's/^version=//p' "$template")
           _rev=$(sed -n 's/^_rev=//p' "$template")
+          revision=$(sed -n 's/^revision=//p' "$template")
           checksum=$(sed -n 's/^checksum=//p' "$template")
           distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
-          : "${pkgname:?}" "${version:?}" "${_rev:?}" "${checksum:?}" "${distfiles:?}"
+          : "${pkgname:?}" "${version:?}" "${_rev:?}" "${revision:?}" "${checksum:?}" "${distfiles:?}"
 
           printf '%s\n' "$checksum" | grep -Eq '^[0-9A-Fa-f]{64}$' || {
             echo "template checksum must be exactly one 64-character SHA-256 digest" >&2
             exit 1
           }
 
-          set -- $distfiles
-          [ "$#" -eq 1 ] || {
-            echo "template must contain exactly one distfile URL" >&2
-            exit 1
-          }
-
-          revision=$(sed -n 's/^revision=//p' "$template")
           printf '%s\n' "$revision" | grep -Eq '^[0-9]+
+
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
@@ -141,17 +135,19 @@ jobs:
 
       - name: start sccache server
         working-directory: void-packages
+        env:
+          SCCACHE_SERVER_UDS_HOST: ${{ github.workspace }}/void-packages/hostdir/sccache.sock
         run: |
           set -euo pipefail
-          rm -f "$SCCACHE_SERVER_UDS"
-          SCCACHE_SERVER_UDS="$SCCACHE_SERVER_UDS" "$SCCACHE_PATH" --stop-server >/dev/null 2>&1 || true
-          SCCACHE_SERVER_UDS="$SCCACHE_SERVER_UDS" "$SCCACHE_PATH" --start-server
+          rm -f "$SCCACHE_SERVER_UDS_HOST"
+          SCCACHE_SERVER_UDS="$SCCACHE_SERVER_UDS_HOST" "$SCCACHE_PATH" --stop-server >/dev/null 2>&1 || true
+          SCCACHE_SERVER_UDS="$SCCACHE_SERVER_UDS_HOST" "$SCCACHE_PATH" --start-server
 
           for _ in $(seq 1 50); do
-            [ -S "$SCCACHE_SERVER_UDS" ] && break
+            [ -S "$SCCACHE_SERVER_UDS_HOST" ] && break
             sleep 0.1
           done
-          test -S "$SCCACHE_SERVER_UDS"
+          test -S "$SCCACHE_SERVER_UDS_HOST"
 
           install -Dm755 "$SCCACHE_PATH" masterdir/usr/libexec/sccache-real
           cat > masterdir/usr/bin/sccache <<'EOF'
@@ -211,6 +207,8 @@ EOF
 
       - name: show sccache stats
         if: ${{ always() }}
+        env:
+          SCCACHE_SERVER_UDS: ${{ github.workspace }}/void-packages/hostdir/sccache.sock
         run: |
           set -euo pipefail
           SCCACHE_SERVER_UDS="$SCCACHE_SERVER_UDS" "$SCCACHE_PATH" --show-stats
@@ -266,6 +264,12 @@ EOF
             exit 1
           }
 
+          set -- $distfiles
+          [ "$#" -eq 1 ] || {
+            echo "template must contain exactly one distfile URL" >&2
+            exit 1
+          }
+
           distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
           distfile_from_url="${distfiles##*/}"
           [ "$distfile_from_url" = "$distfile" ] || {
@@ -274,7 +278,6 @@ EOF
             echo "actual:   $distfile_from_url" >&2
             exit 1
           }
-
           release_tag="${version}-${_rev}"
 
 
