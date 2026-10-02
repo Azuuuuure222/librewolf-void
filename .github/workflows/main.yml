@@ -101,6 +101,13 @@ jobs:
           set -euo pipefail
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
+      - name: restore Void binary package cache
+        id: xbps-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: void-packages/hostdir/repocache-${{ env.XBPS_TARGET_ARCH }}
+          key: void-repocache-v1-${{ env.XBPS_TARGET_ARCH }}-${{ hashFiles('void-packages/xbps-src', 'void-packages/srcpkgs/base-chroot/template') }}
+
       - name: bootstrap xbps-src
         timeout-minutes: 15
         working-directory: void-packages
@@ -244,6 +251,13 @@ jobs:
         with:
           path: void-packages/hostdir/pgo-cache
           key: \${{ steps.pgo-key.outputs.key }}
+
+      - name: save Void binary package cache
+        if: ${{ always() && steps.xbps-cache.outputs.cache-hit != 'true' && hashFiles('void-packages/hostdir/repocache-${{ env.XBPS_TARGET_ARCH }}') != '' }}
+        uses: actions/cache/save@v6
+        with:
+          path: void-packages/hostdir/repocache-${{ env.XBPS_TARGET_ARCH }}
+          key: void-repocache-v1-${{ env.XBPS_TARGET_ARCH }}-${{ hashFiles('void-packages/xbps-src', 'void-packages/srcpkgs/base-chroot/template') }}
 
       - name: remove sccache credentials
         if: ${{ always() }}
