@@ -78,7 +78,16 @@ jobs:
             exit 1
           }
 
-          printf '%s\n' "$revision" | grep -Eq '^[0-9]+
+          printf '%s\n' "$revision" | grep -Eq '^[0-9]+$' || {
+            echo "template revision must be a non-negative integer" >&2
+            exit 1
+          }
+
+          set -- $distfiles
+          [ "$#" -eq 1 ] || {
+            echo "template must contain exactly one distfile URL" >&2
+            exit 1
+          }
 
           distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
           distfile_from_url="${distfiles##*/}"
@@ -89,6 +98,7 @@ jobs:
             exit 1
           }
           release_tag="${version}-${_rev}-${revision}"
+
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
@@ -144,7 +154,6 @@ jobs:
         run: |
           set -euo pipefail
           test -x "$SCCACHE_PATH"
-
           install -Dm755 "$SCCACHE_PATH" masterdir/usr/libexec/sccache-real
           cat > masterdir/usr/bin/sccache <<'EOF'
 #!/bin/sh
@@ -164,7 +173,6 @@ EOF
             printf 'ACTIONS_RUNTIME_TOKEN=%s\n' "$ACTIONS_RUNTIME_TOKEN"
           } > hostdir/sccache-env
 
-          masterdir/usr/bin/sccache --version
 
       - name: restore LibreWolf source
         id: source-cache
@@ -225,169 +233,6 @@ EOF
           set -euo pipefail
           sha256sum -- *.xbps *-repodata
           sha512sum -- *.xbps *-repodata
-
-      - name: publish release tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.meta.outputs.release_tag }}
-        run: |
-          set -euo pipefail
-          gh auth setup-git
-          git push --force origin "HEAD:refs/tags/$TAG"
-
-      - name: create release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.meta.outputs.release_tag }}
-          VERSION: ${{ steps.meta.outputs.version }}
-          REV: ${{ steps.meta.outputs.rev }}
-        run: |
-          set -euo pipefail
-          gh release view "$TAG" >/dev/null 2>&1 && exit 0
-          gh release create "$TAG" \
-            --title "librewolf $TAG" \
-            --notes "https://librewolf.dev/librewolf/source/releases/tag/${VERSION}-${REV}" \
-            --latest=false
-
-      - name: upload release assets
-        working-directory: void-packages/hostdir/binpkgs/
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          gh release upload "${{ steps.meta.outputs.release_tag }}" *.xbps *-repodata --clobber
-
-      - name: mark release latest
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          gh release edit "${{ steps.meta.outputs.release_tag }}" --latest
- || {
-            echo "template revision must be a non-negative integer" >&2
-            exit 1
-          }
-
-          set -- $distfiles
-          [ "$#" -eq 1 ] || {
-            echo "template must contain exactly one distfile URL" >&2
-            exit 1
-          }
-
-          distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
-          release_tag="${version}-${_rev}"
-
-
-          echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
-          echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "rev=$_rev" >> "$GITHUB_OUTPUT"
-          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
-
-      - name: prepare xbps-static
-        run: |
-          set -euo pipefail
-          mkdir -p /opt/xbps
-          curl --fail --location --retry 5 --retry-all-errors \
-            --connect-timeout 30 --max-time 300 \
-            --output xbps-static-latest.x86_64-musl.tar.xz \
-            https://repo-default.voidlinux.org/static/xbps-static-latest.x86_64-musl.tar.xz
-          tar -xJf xbps-static-latest.x86_64-musl.tar.xz -C /opt/xbps
-          rm -f xbps-static-latest.x86_64-musl.tar.xz
-
-      - name: install PGO Wayland compositor
-        run: |
-          set -euo pipefail
-          if ! command -v weston >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends weston
-          fi
-
-      - name: setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.11
-
-      - name: export sccache GitHub Actions credentials
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
-      - name: allow xbps user namespaces
-        run: |
-          set -euo pipefail
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-
-      - name: bootstrap xbps-src
-        timeout-minutes: 15
-        working-directory: void-packages
-        run: |
-          set -euo pipefail
-          export PATH="/opt/xbps/usr/bin/:$PATH"
-          ./xbps-src -A "$XBPS_TARGET_ARCH" binary-bootstrap
-
-      - name: provision CI sccache in xbps masterdir
-        working-directory: void-packages
-        run: |
-          set -euo pipefail
-          test -x "$SCCACHE_PATH"
-          install -D -m 0755 "$SCCACHE_PATH" masterdir/usr/bin/sccache
-          masterdir/usr/bin/sccache --version
-
-      - name: restore LibreWolf source
-        id: source-cache
-        uses: actions/cache/restore@v6
-        with:
-          path: void-packages/hostdir/sources/librewolf-${{ steps.meta.outputs.version }}/${{ steps.meta.outputs.distfile }}
-          key: librewolf-source-v4-${{ steps.meta.outputs.sha256 }}
-
-      - name: fetch and verify LibreWolf source
-        timeout-minutes: 20
-        working-directory: void-packages
-        env:
-          DISTFILE: ${{ steps.meta.outputs.distfile }}
-          VERSION: ${{ steps.meta.outputs.version }}
-          SHA256: ${{ steps.meta.outputs.sha256 }}
-        run: |
-          set -euo pipefail
-          export PATH="/opt/xbps/usr/bin/:$PATH"
-          srcdir="hostdir/sources/librewolf-${VERSION}"
-          distfile="${srcdir}/${DISTFILE}"
-          mkdir -p "$srcdir"
-
-          if [ "${{ steps.source-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "LibreWolf source cache hit; verifying cached archive..."
-            printf '%s  %s\n' "$SHA256" "$distfile" | sha256sum --check --status -
-          else
-            echo "LibreWolf source cache miss; fetching through xbps-src..."
-            ./xbps-src -A "$XBPS_TARGET_ARCH" fetch librewolf
-            test -s "$distfile"
-            printf '%s  %s\n' "$SHA256" "$distfile" | sha256sum --check --status -
-          fi
-
-      - name: save LibreWolf source
-        if: ${{ steps.source-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v6
-        with:
-          path: void-packages/hostdir/sources/librewolf-${{ steps.meta.outputs.version }}/${{ steps.meta.outputs.distfile }}
-          key: librewolf-source-v4-${{ steps.meta.outputs.sha256 }}
-
-      - name: build package
-        timeout-minutes: 330
-        working-directory: void-packages
-        run: |
-          set -euo pipefail
-          export PATH="/opt/xbps/usr/bin/:$PATH"
-          ./xbps-src -A "$XBPS_TARGET_ARCH" pkg -j"$(nproc)" librewolf
-
-      - name: checksum packages
-        working-directory: void-packages/hostdir/binpkgs/
-        run: |
-          set -euo pipefail
-          sha256sum -- *.xbps
-          sha512sum -- *.xbps
 
       - name: publish release tag
         env:
