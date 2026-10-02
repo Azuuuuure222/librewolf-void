@@ -28,7 +28,18 @@ jobs:
       - name: free space
         run: |
           set -euo pipefail
-          sudo rm -rf --             /usr/share/dotnet             /usr/share/swift             /usr/local/lib/android             /opt/ghc             /usr/local/.ghcup             /usr/local/share/boost             /opt/hostedtoolcache             /usr/local/graalvm             /usr/local/share/powershell             /usr/local/share/chromium             /usr/local/lib/node_modules
+          sudo rm -rf -- \
+            /usr/share/dotnet \
+            /usr/share/swift \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /usr/local/share/boost \
+            /opt/hostedtoolcache \
+            /usr/local/graalvm \
+            /usr/local/share/powershell \
+            /usr/local/share/chromium \
+            /usr/local/lib/node_modules
           sudo docker image prune --all --force
           df -h /
 
@@ -77,12 +88,6 @@ jobs:
           distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
           release_tag="${version}-${_rev}"
 
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            [ "${GITHUB_REF_NAME}" = "$release_tag" ] || {
-              echo "tag ${GITHUB_REF_NAME} does not match package version $release_tag" >&2
-              exit 1
-            }
-          fi
 
           echo "sha256=$checksum" >> "$GITHUB_OUTPUT"
           echo "distfile=$distfile" >> "$GITHUB_OUTPUT"
@@ -179,7 +184,6 @@ jobs:
           sha512sum -- *.xbps
 
       - name: publish release tag
-        if: ${{ github.ref_type == 'branch' && github.ref_name == 'master' }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.meta.outputs.release_tag }}
