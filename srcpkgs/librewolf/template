@@ -74,6 +74,7 @@ do_build() {
 	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake"
 	export RUSTC_OPT_LEVEL=2
 	export RUSTC_WRAPPER=/usr/bin/sccache
+	export SCCACHE_CLIENT_SIDE=false
 	export SCCACHE_DIR=/host/sccache
 	export SCCACHE_CACHE_SIZE=16G
 	export SCCACHE_CACHE_ZSTD_LEVEL=1
