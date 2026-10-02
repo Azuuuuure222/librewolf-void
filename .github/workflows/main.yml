@@ -40,7 +40,6 @@ jobs:
               /opt/ghc \
               /usr/local/.ghcup \
               /usr/local/share/boost \
-              /opt/hostedtoolcache \
               /usr/local/graalvm \
               /usr/local/share/powershell \
               /usr/local/share/chromium \
@@ -139,6 +138,8 @@ jobs:
                 `export SCCACHE_GHA_ENABLED=${quote(process.env.SCCACHE_GHA_ENABLED)}`,
                 `export SCCACHE_GHA_VERSION=${quote(process.env.SCCACHE_GHA_VERSION)}`,
                 "export ACTIONS_CACHE_SERVICE_V2=true",
+                `export ACTIONS_RESULTS_URL=${quote(cacheUrl)}`,
+                `export ACTIONS_RUNTIME_TOKEN=${quote(runtimeToken)}`,
                 `export SCCACHE_GHA_CACHE_URL=${quote(cacheUrl)}`,
                 `export SCCACHE_GHA_RUNTIME_TOKEN=${quote(runtimeToken)}`,
                 "export SCCACHE_MULTILEVEL_CHAIN=disk,gha",
@@ -193,6 +194,31 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
+
+          pgo_runtime_dir="$PWD/hostdir/pgo-runtime"
+          rm -rf "$pgo_runtime_dir"
+          mkdir -p "$pgo_runtime_dir"
+          chmod 700 "$pgo_runtime_dir"
+
+          weston_pid=""
+          cleanup_weston() {
+            if [ -n "$weston_pid" ]; then
+              kill "$weston_pid" >/dev/null 2>&1 || true
+              wait "$weston_pid" >/dev/null 2>&1 || true
+            fi
+            rm -rf "$pgo_runtime_dir"
+          }
+          trap cleanup_weston EXIT
+
+          XDG_RUNTIME_DIR="$pgo_runtime_dir"             weston --backend=headless-backend.so --socket=wayland-1             --idle-time=0 --width=1920 --height=1080             >"$pgo_runtime_dir/weston.log" 2>&1 &
+          weston_pid=$!
+
+          for _ in $(seq 1 100); do
+            [ -S "$pgo_runtime_dir/wayland-1" ] && break
+            sleep 0.1
+          done
+          test -S "$pgo_runtime_dir/wayland-1"
+
           ./xbps-src -A "$XBPS_TARGET_ARCH" pkg -j"$(nproc)" librewolf
 
       - name: remove sccache credentials
