@@ -110,10 +110,12 @@ jobs:
           esac
 
           distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
+          expected_template_distfile='${pkgname}-${version}-${_rev}.source.tar.gz'
           actual_distfile="${1##*/}"
-          [ "$actual_distfile" = "$distfile" ] || {
-            echo "distfile basename mismatch: expected $distfile, got $actual_distfile" >&2
+          [ "$actual_distfile" = "$expected_template_distfile" ] || {
+            echo "distfile basename mismatch: expected $expected_template_distfile, got $actual_distfile" >&2
             exit 1
+          }
           }
           release_tag="${version}-${_rev}"
 
