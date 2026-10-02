@@ -130,6 +130,14 @@ jobs:
           export PATH="/opt/xbps/usr/bin/:$PATH"
           ./xbps-src -A "$XBPS_TARGET_ARCH" binary-bootstrap
 
+      - name: provision CI sccache in xbps masterdir
+        working-directory: void-packages
+        run: |
+          set -euo pipefail
+          test -x "$SCCACHE_PATH"
+          install -D -m 0755 "$SCCACHE_PATH" masterdir/usr/bin/sccache
+          masterdir/usr/bin/sccache --version
+
       - name: restore LibreWolf source
         id: source-cache
         uses: actions/cache/restore@v6
