@@ -44,8 +44,7 @@ The package carries target-specific fixes for:
 - LLVM 22 compatibility
 - `mallinfo` compatibility
 - sandbox `sched_setscheduler` compatibility
-- full-LTO semantic-interposition handling for SQLite
-- full-LTO semantic-interposition handling for bundled FFvpx shared libraries
+- target-specific musl and sandbox compatibility fixes carried from the current Void Firefox packaging
 
 Cross-architecture and obsolete workarounds are intentionally avoided.
 
@@ -80,7 +79,7 @@ The workflow:
 
 Build, bootstrap, fetch, and PGO stages have explicit time limits. Workflow concurrency cancels obsolete builds.
 
-Tags are published by the successful master build; tag pushes do not trigger another full build.
+Release tags include the LibreWolf source revision and Void package revision (for example, `157.0-1-r6`); tag pushes do not trigger another full build.
 
 ## Release and packaging model
 
@@ -101,7 +100,7 @@ Priorities are:
 - reduce HDD activity
 - use PGO/LTO where their runtime value justifies the CI cost
 - keep musl changes narrow and auditable
-- fix third-party full-LTO issues with targeted exceptions instead of disabling useful optimizations globally
+- keep third-party LTO workarounds narrow and source-specific
 - prefer native Void `xbps-src` mechanisms
 
 ## Primary upstream references
