@@ -214,6 +214,7 @@ jobs:
             sleep 0.1
           done
           test -S "$pgo_runtime_dir/wayland-1"
+          : >"$pgo_runtime_dir/wayland-required"
 
           ./xbps-src -A "$XBPS_TARGET_ARCH" pkg -j"$(nproc)" librewolf
 

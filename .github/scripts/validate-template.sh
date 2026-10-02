@@ -20,11 +20,11 @@ distfiles=$(sed -n 's/^distfiles="//p' "$template" | sed 's/"$//')
 }
 
 case "$version" in
-  ''|*[!A-Za-z0-9._-]*) echo "invalid version: $version" >&2; exit 1 ;;
+  ''|*[!0-9.]*) echo "invalid LibreWolf version: $version" >&2; exit 1 ;;
 esac
 
 case "$revision" in
-  ''|*[!0-9]*) echo "revision must be a positive integer: $revision" >&2; exit 1 ;;
+  ''|0|*[!0-9]*) echo "revision must be a positive integer: $revision" >&2; exit 1 ;;
 esac
 
 case "$_rev" in

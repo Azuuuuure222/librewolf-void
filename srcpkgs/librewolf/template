@@ -215,7 +215,8 @@ do_build() {
 		./mach build
 		./mach package
 
-		if [ -S /host/pgo-runtime/wayland-1 ]; then
+		if [ -f /host/pgo-runtime/wayland-required ]; then
+			test -S /host/pgo-runtime/wayland-1
 			LLVM_PROFDATA=llvm-profdata \
 			JARLOG_FILE="$PWD/jarlog" \
 			GDK_BACKEND=wayland \
