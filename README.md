@@ -80,7 +80,7 @@ The build uses Void's package-managed `rust-sccache` inside the xbps masterdir. 
 
 The chroot receives the GitHub Actions cache credentials through Void's `/host` bind mount. sccache is configured as a two-level cache: a fast local disk cache first, followed by the GitHub Actions cache as the persistent remote level. This lets PGO and the final profile-use build reuse local results immediately while allowing later workflow runs to reuse compatible compiler results remotely.
 
-The local cache is bounded at 16 GiB, the sccache client-side mode is enabled to keep compilation overhead low, and cache write failures are treated as non-fatal so a cache service problem cannot break the browser build. The workflow records normal sccache statistics after the package build rather than enabling a separate error-log mode that would disable client-side operation.
+The local cache is bounded at 16 GiB. Client-side mode is intentionally disabled because current sccache multi-level client-side operation has an open upstream issue where the local first-level cache can remain unpopulated; this build depends on reliable disk-to-GitHub backfilling (https://github.com/mozilla/sccache/issues/2796). Cache write failures are treated as non-fatal so a cache service problem cannot break the browser build. The workflow records normal sccache statistics after the package build.
 
 ## Runtime tuning
 
@@ -125,9 +125,8 @@ The workflow:
 6. installs the PGO compositor
 7. enables the user namespaces required by `xbps-src`
 8. bootstraps the xbps masterdir
-9. installs the CI sccache binary into that masterdir
-10. exposes the GitHub-backed sccache environment to the chroot
-11. restores or fetches and verifies the LibreWolf source
+9. exposes the GitHub Actions cache runtime to the chroot
+10. restores or fetches and verifies the LibreWolf source
 12. runs the full PGO/LTO package build
 13. checksums the generated package and repository metadata
 14. updates the source-version release tag and publishes the successful build

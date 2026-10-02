@@ -25,7 +25,6 @@ jobs:
       XBPS_TARGET_ARCH: x86_64-musl
       SCCACHE_GHA_ENABLED: "on"
       SCCACHE_GHA_VERSION: "librewolf-x86_64-musl-skylake-v1"
-      SCCACHE_GHA_RW_MODE: "READ_WRITE"
     steps:
       - name: free space
         run: |
@@ -110,20 +109,44 @@ jobs:
           export PATH="/opt/xbps/usr/bin/:$PATH"
           ./xbps-src -A "$XBPS_TARGET_ARCH" binary-bootstrap
 
-      - name: configure sccache inside xbps chroot
-        working-directory: void-packages
-        run: |
-          set -euo pipefail
-          : "${SCCACHE_GHA_ENABLED:?}" "${SCCACHE_GHA_VERSION:?}" "${ACTIONS_RESULTS_URL:?}" "${ACTIONS_RUNTIME_TOKEN:?}"
-          umask 077
-          {
-            printf 'export SCCACHE_GHA_ENABLED=%q\n' "$SCCACHE_GHA_ENABLED"
-            printf 'export SCCACHE_GHA_VERSION=%q\n' "$SCCACHE_GHA_VERSION"
-            printf 'export ACTIONS_RESULTS_URL=%q\n' "$ACTIONS_RESULTS_URL"
-            printf 'export ACTIONS_RUNTIME_TOKEN=%q\n' "$ACTIONS_RUNTIME_TOKEN"
-            printf 'export SCCACHE_MULTILEVEL_CHAIN=disk,gha\n'
-            printf 'export SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore\n'
-          } > hostdir/sccache-env
+      - name: prepare sccache environment
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+
+            const cacheUrl = process.env.ACTIONS_RESULTS_URL;
+            const runtimeToken = process.env.ACTIONS_RUNTIME_TOKEN;
+            if (!cacheUrl || !runtimeToken) {
+              throw new Error("GitHub Actions cache runtime credentials are unavailable");
+            }
+
+            core.setSecret(runtimeToken);
+
+            const quote = (value) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
+            const envFile = path.join(
+              process.env.GITHUB_WORKSPACE,
+              "void-packages",
+              "hostdir",
+              "sccache-env",
+            );
+
+            fs.writeFileSync(
+              envFile,
+              [
+                `export SCCACHE_GHA_ENABLED=${quote(process.env.SCCACHE_GHA_ENABLED)}`,
+                `export SCCACHE_GHA_VERSION=${quote(process.env.SCCACHE_GHA_VERSION)}`,
+                `export SCCACHE_GHA_CACHE_URL=${quote(cacheUrl)}`,
+                `export SCCACHE_GHA_RUNTIME_TOKEN=${quote(runtimeToken)}`,
+                "export SCCACHE_GHA_RW_MODE=READ_WRITE",
+                "export SCCACHE_MULTILEVEL_CHAIN=disk,gha",
+                "export SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore",
+              ].join("\n") + "\n",
+              { mode: 0o600 },
+            );
+            fs.chmodSync(envFile, 0o600);
+            core.info(`prepared ${envFile}`);
 
       - name: restore LibreWolf source
         id: source-cache
