@@ -80,7 +80,7 @@ The build uses Void's package-managed `rust-sccache` inside the xbps masterdir. 
 
 The chroot receives the GitHub Actions cache credentials through Void's `/host` bind mount. sccache is configured as a two-level cache: a fast local disk cache first, followed by the GitHub Actions cache as the persistent remote level. This lets PGO and the final profile-use build reuse local results immediately while allowing later workflow runs to reuse compatible compiler results remotely.
 
-The local cache is bounded at 16 GiB, the sccache client-side mode is enabled to keep compilation overhead low, and cache write failures are treated as non-fatal so a cache service problem cannot break the browser build.
+The local cache is bounded at 16 GiB, the sccache client-side mode is enabled to keep compilation overhead low, and cache write failures are treated as non-fatal so a cache service problem cannot break the browser build. The workflow records normal sccache statistics after the package build rather than enabling a separate error-log mode that would disable client-side operation.
 
 ## Runtime tuning
 
