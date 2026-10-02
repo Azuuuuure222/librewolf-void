@@ -1,0 +1,15 @@
+diff --git a/media/ffvpx/ffvpxcommon.mozbuild b/media/ffvpx/ffvpxcommon.mozbuild
+--- a/media/ffvpx/ffvpxcommon.mozbuild
++++ b/media/ffvpx/ffvpxcommon.mozbuild
+@@ -36,6 +36,10 @@ CFLAGS += [
+     '-Wno-deprecated-declarations',
+ ]
+ if CONFIG['CC_TYPE'] in ('clang', 'clang-cl'):
++    if CONFIG['CC_TYPE'] == 'clang':
++        # FFvpx is built as shared libraries. With the package-wide
++        # -fno-semantic-interposition setting, full LTO can otherwise
++        # emit non-PIC PC-relative relocations for default-visible symbols.
++        CFLAGS += ['-fsemantic-interposition']
+     CFLAGS += [
+         '-Wno-absolute-value',
+         '-Wno-incompatible-pointer-types',
