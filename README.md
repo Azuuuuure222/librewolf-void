@@ -1,171 +1,245 @@
-# LibreWolf for Void Linux — personal Skylake / x86_64-musl build
+# LibreWolf for Void Linux — Skylake / x86_64-musl
 
-This repository is a personal, hardware-specific LibreWolf package for **Void Linux x86_64-musl**.
+Personal, hardware-specific LibreWolf packaging for one target system:
 
-It is not intended to be a portable LibreWolf binary for arbitrary x86_64 systems. The package is deliberately tuned for one deployment target:
-
-- **CPU:** Intel Core i3-6100U, Skylake, 2 cores / 4 threads
+- **OS:** Void Linux x86_64-musl
+- **CPU:** Intel Core i3-6100U / Skylake, 2 cores / 4 threads
 - **RAM:** 4 GB DDR3
 - **Storage:** HDD
-- **Display/session:** Wayland
-- **OS:** Void Linux x86_64-musl
+- **Session:** Wayland
+- **Target:** x86_64-musl only
 
-## Purpose
+This is intentionally a **non-portable, target-tuned package** rather than a generic x86_64 LibreWolf build.
 
-The goal is simple: build one LibreWolf package that is tuned for the machine that will actually run it.
+## Goals
 
-That changes the priorities compared with a general-purpose distribution package. Portability across unrelated CPUs, cross-version reproducibility, and broad architecture support are not priorities here. Runtime responsiveness, memory pressure, HDD activity, and useful optimization passes are.
+The project prioritizes:
 
-The project is effectively a personal build profile layered on top of Void's `xbps-src` packaging system and the upstream LibreWolf source.
+1. Fast LibreWolf runtime on the target Skylake laptop.
+2. Lower memory pressure on 4 GB RAM.
+3. Less HDD activity.
+4. Fast, repeatable GitHub Actions builds.
+5. Heavy use of CI CPU/RAM for compilation and linking.
+6. Keeping downstream patches narrow and auditable.
 
-## Why only this target
+Security is inherited from LibreWolf/Void where practical; this repository does not optimize its workflow around project-security hardening.
 
-The package is restricted to **x86_64-musl / Skylake** because those restrictions describe the actual deployment machine.
+## Build optimization
 
-**x86_64-musl** is the target because that is the installed Void environment. Maintaining a glibc build would add another ABI and compatibility matrix without providing value for this machine.
+### CPU-specific code generation
 
-**Skylake** is the target because the Core i3-6100U supports the Skylake ISA/features. The package therefore uses `-march=skylake` and `-mtune=skylake` instead of trying to remain compatible with older x86_64 CPUs.
-
-That restriction is intentional. A binary built this way should be treated as a machine-specific package, not a generic x86_64 artifact.
-
-## Build optimizations
-
-### CPU-specific compilation
-
-C and C++ are built with:
+C/C++:
 
 ```text
 -O2 -march=skylake -mtune=skylake
 ```
 
-Rust uses:
+Rust:
 
 ```text
 -C target-cpu=skylake
+RUSTC_OPT_LEVEL=2
 ```
 
-This lets the generated code target the actual CPU instead of preserving compatibility with much older x86_64 processors.
+The resulting package is meant for Skylake-class CPUs, not arbitrary x86_64 systems.
 
-### Clang / LLVM
+### LLVM toolchain
 
-The package uses **Clang 22, LLVM 22, and LLD 22**.
+The package uses:
 
-The Clang/LLD path is used because the Firefox build already has strong LLVM integration and the package is deliberately using LLVM-based LTO rather than treating GCC compatibility as a goal.
+- Clang 22
+- LLVM 22
+- LLD 22
 
-### Full LTO plus Rust ThinLTO
+The LLVM linker is used together with full cross-language LTO.
 
-The final browser build enables LLVM cross-language LTO.
+### LTO
 
-Rust is deliberately forced to **ThinLTO** through the downstream patch rather than using the full Rust LTO mode that Firefox's build logic can request during cross-language LTO.
+The final build uses:
 
-The reason is practical: ThinLTO keeps most of the optimization benefit while avoiding an unnecessarily expensive Rust link strategy for a 4 GB machine and a long-running PGO/LTO build.
+- cross-language/full LLVM LTO
+- Rust ThinLTO
+- parallel LLD LTO threads and partitions
+
+Rust ThinLTO is intentional: it keeps the cross-language optimization path while avoiding the more expensive Rust fat-LTO mode.
 
 ### PGO
 
-Profile-guided optimization is enabled by default.
+PGO is enabled by default.
 
-The workflow performs an instrumented build, runs the browser through a headless Wayland workload using Weston when available, collects `merged.profdata` and the jarlog, then performs the final profile-use build.
+CI:
 
-There is an X11/Xvfb fallback for environments where Weston is unavailable.
+1. Builds an instrumented LibreWolf.
+2. Runs the PGO workload against a headless Weston Wayland compositor.
+3. Collects `merged.profdata` and the PGO jarlog.
+4. Rebuilds with profile-use + LTO.
 
-### Parallel LTO
+The compositor runs on the GitHub runner and its Wayland socket is exposed through xbps-src's `/host` bind mount, so the browser's PGO workload actually exercises Wayland.
 
-The final linker is configured to use multiple LTO threads and partitions on the build runner.
+Manual/non-CI builds retain an Xvfb/X11 fallback.
 
-The build machine can therefore spend CPU time aggressively during CI without making the package depend on the CPU count of the eventual laptop.
+## Build acceleration
 
 ### sccache
 
-The build uses Void's package-managed `rust-sccache` inside the xbps masterdir. This is deliberate: `xbps-src` can clean and reconstruct the masterdir during dependency resolution, so copying an unmanaged binary into `masterdir/usr/bin` is not durable.
+The build uses Void's packaged `rust-sccache` rather than copying an unmanaged binary into the xbps masterdir.
 
-The chroot receives the GitHub Actions cache runtime through Void's `/host` bind mount. sccache is configured as a two-level cache: a fast local disk cache first, followed by the GitHub Actions cache as the persistent remote level. This lets PGO and the final profile-use build reuse local results immediately while allowing later workflow runs to reuse compatible compiler results remotely.
+The cache hierarchy is:
 
-The local cache is bounded at 16 GiB and uses low-overhead zstd level 1 compression to reduce cache CPU cost. Client-side mode is intentionally disabled because current sccache multi-level client-side operation has an open upstream issue where the local first-level cache can remain unpopulated; this build depends on reliable disk-to-GitHub backfilling (https://github.com/mozilla/sccache/issues/2796). Cache write failures are treated as non-fatal so a cache service problem cannot break the browser build. The workflow records normal sccache statistics after the package build.
+```text
+local disk cache -> GitHub Actions cache
+```
+
+Current settings include:
+
+- 16 GiB local cache
+- zstd compression level 1 to reduce compression CPU cost
+- persistent sccache daemon across long PGO/LTO phases
+- server mode explicitly forced
+- remote cache write failures are non-fatal
+
+The GitHub Actions runtime credentials are passed into the xbps chroot through `/host`.
+
+### Source cache
+
+The LibreWolf source archive is cached by its SHA-256 checksum and re-verified before use.
+
+### PGO cache
+
+Generated PGO data is cached using:
+
+- LibreWolf source checksum
+- package template contents
+- downstream patch contents
+- a PGO cache version
+
+A matching PGO profile skips the expensive instrumented build/profile-generation phase.
+
+### Void binary-package cache
+
+The xbps repository cache for the target is persisted between workflows so repeated builds can reuse previously downloaded Void binary packages and reduce bootstrap/dependency setup time.
+
+### CI concurrency
+
+GitHub Actions cancels obsolete builds on the same branch, preventing old multi-hour builds from consuming runner resources after a newer commit arrives.
+
+## CI build flow
+
+The workflow roughly does:
+
+```text
+checkout
+  -> overlay package
+  -> validate template metadata
+  -> restore PGO/source/Void caches
+  -> prepare xbps-static
+  -> install Weston only when PGO is needed
+  -> bootstrap xbps-src
+  -> configure sccache
+  -> fetch/verify source
+  -> PGO/LTO/Skylake build
+  -> package/checksum
+  -> update release tag
+  -> upload packages
+```
+
+The validator checks template syntax, package metadata, revision values, SHA-256 format, HTTPS source URLs, and the expected LibreWolf source filename before the expensive build stages.
 
 ## Runtime tuning
 
-The package carries a small set of runtime preferences aimed at **4 GB RAM + HDD** systems:
+`vendor.js` contains target-specific preferences for **4 GB RAM + HDD** systems:
 
-- limit shared web-content process fan-out to four processes
-- keep one Fission content process preallocated
-- enable background-tab unloading under memory pressure
-- trigger memory reclamation earlier
-- reduce session-store write frequency to reduce HDD churn
-- disable New Tab preloading when it is not needed
-- cap disk-cache memory buffers
+- background-tab unloading under memory pressure
+- earlier low-commit-space pressure
+- 30-second session-store writes instead of more frequent HDD writes
+- disabled New Tab preloading
+- bounded disk-cache memory buffers
+- four shared web-content processes
+- one prelaunched Fission content process
 
-These are not claimed to be universally optimal Firefox settings. They are deliberately biased toward avoiding memory pressure and unnecessary disk activity on this specific machine.
+These settings are intentionally biased toward memory pressure, disk activity, and responsiveness on this machine rather than universal Firefox defaults.
 
-## musl and Void compatibility
+## musl / Void compatibility
 
-The package carries narrow compatibility fixes that are required for the selected Void musl environment and current Firefox 157-era sources, including:
+The package carries narrow downstream fixes for the selected Void musl environment and the current Firefox/LibreWolf source:
 
-- musl/Linux `prctl` header conflicts
+- musl/Linux `prctl` header conflict
 - `mach clobber` compatibility
-- missing C++ standard-library includes
-- `audio_thread_priority` musl compatibility
-- LLVM 22 compatibility
-- `mallinfo` compatibility
-- sandbox scheduling compatibility
-- Rust ThinLTO for the Firefox Rust top-level crate
+- musl `pthread_t` serialization in `audio_thread_priority`
+- LLVM 22 WASI target rename
+- Rust ThinLTO handling
+- musl `mallinfo` compatibility
+- Parakeet C++ header compatibility
+- musl sandbox scheduling compatibility
+- musl fortify/system-wrapper compatibility
 
-Most of these patches are synchronized with the corresponding current Void Firefox patches rather than being maintained as broad LibreWolf-specific forks.
+The patch set is kept small and follows current Void Firefox patches where applicable.
 
-## Build and CI model
+## Package configuration
 
-GitHub Actions builds the package on Ubuntu 24.04 using the current Void `void-packages` tree.
+Default build options keep:
+
+```text
+alsa dbus pulseaudio wayland lto pgo clang wasi
+```
+
+Other options remain available in the template for the package build system:
+
+```text
+jack xscreensaver sndio debug
+```
+
+The package intentionally disables or avoids features not useful for this personal build, including the updater, crash reporting, telemetry/reporting components, jemalloc, and elf-hack where required by the target build configuration.
+
+System libraries are used where the Void packaging supports them, including NSS, NSPR, pixman, libevent, JPEG, WebP, zlib, and other configured dependencies.
+
+## Packaging
+
+The package is built through Void's `xbps-src` using the current Void `void-packages` tree.
 
 The workflow:
 
-1. frees runner disk space only when necessary
-2. checks out this repository and Void packaging
-3. overlays the LibreWolf package into `void-packages`
-4. validates the source metadata
-5. prepares static XBPS tooling
-6. installs the PGO compositor
-7. enables the user namespaces required by `xbps-src`
-8. bootstraps the xbps masterdir
-9. exposes the GitHub Actions cache runtime to the chroot
-10. restores or fetches and verifies the LibreWolf source
-11. saves the verified source on a cache miss
-12. runs the full PGO/LTO package build
-13. checksums the generated package and repository metadata
-14. updates the source-version release tag and publishes the successful build
+- builds only for `x86_64-musl`
+- uses the current LibreWolf source revision recorded in `srcpkgs/librewolf/template`
+- verifies the source checksum
+- produces XBPS packages and repository metadata
+- checksums generated artifacts
+- publishes them to a release based on `version-_rev`
 
-The workflow uses concurrency cancellation so obsolete multi-hour builds do not continue after newer changes are pushed.
+The release tag can be deliberately overwritten for rebuilt copies of the same LibreWolf source revision.
 
-A manual workflow dispatch is also available for rebuilding the current tree without changing the package source.
-
-## Release model
-
-This is a personal package repository, not a general-purpose distribution repository.
-
-The release tag is based on the **LibreWolf source version and source revision**. Rebuilding the same source revision may update the same tag deliberately. The important state is the successful compiled package, not long-term preservation of every intermediate build.
-
-XBPS signing is not used as a shared Void trust chain.
-
-## Source integrity
-
-The source archive, version, source revision, and SHA-256 checksum live in:
+## Repository layout
 
 ```text
-srcpkgs/librewolf/template
+.github/
+  scripts/validate-template.sh
+  workflows/main.yml
+
+srcpkgs/librewolf/
+  template
+  files/
+    vendor.js
+    librewolf.desktop
+    stab.h
+  patches/
 ```
 
-CI verifies cached source archives before using them. A cache hit is not trusted merely because the cache key matches; the archive is hashed against the template checksum again.
+## Design principles
 
-## Project philosophy
+The project deliberately favors:
 
-The package follows one rule:
+- target-specific optimization over portability
+- PGO/LTO over arbitrary compiler flags
+- CI resources over the target machine's CPU/RAM
+- cache reuse over repeatedly regenerating identical build products
+- small downstream patches over large forks
+- simple shell/package logic where it is reliable
 
-> **Optimize for the machine that will run the browser.**
+The build does **not** blindly enable every theoretical compiler optimization. The current profile is intended as a combined configuration for Skylake + 4 GB RAM + HDD + Wayland.
 
-That means accepting deliberate non-portability where it buys something useful on the target, while keeping downstream source changes narrow enough to audit.
-
-The project does **not** attempt to maximize every theoretical compiler setting. `-O2`, Rust ThinLTO, PGO, full LLVM LTO, Skylake tuning, and the memory/HDD runtime preferences are chosen as a combined profile for this particular hardware rather than as independent benchmark tricks.
-
-## Upstream references
+## Upstream
 
 - LibreWolf: https://librewolf.dev/
-- Void Firefox packaging: https://github.com/void-linux/void-packages/tree/master/srcpkgs/firefox
+- Void Linux packages: https://github.com/void-linux/void-packages
 - Mozilla Firefox build system: https://firefox-source-docs.mozilla.org/build/buildsystem.html
+- sccache: https://github.com/mozilla/sccache
