@@ -734,8 +734,8 @@ The workflow publishes:
 
 - XBPS packages
 - repository metadata
-- SHA-256 checksums
-- SHA-512 checksums
+
+The checksum step verifies and prints SHA-256 and SHA-512 digests for the published artifacts in the build log; it does not create separate checksum files.
 
 The release tag is derived from:
 
