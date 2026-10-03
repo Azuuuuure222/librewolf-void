@@ -27,7 +27,8 @@ hostmakedepends="unzip zip pkg-config perl python3 yasm rust
  $(vopt_if wasi wasi-sdk)"
 makedepends="nss-devel libjpeg-turbo-devel gtk+3-devel
  pixman-devel libevent-devel libnotify-devel libwebp-devel
- rust-std freetype-devel $(vopt_if wasi wasi-sdk)
+ libXrender-devel libXcomposite-devel libSM-devel libXt-devel rust-std
+ libXdamage-devel freetype-devel $(vopt_if wasi wasi-sdk)
  $(vopt_if alsa alsa-lib-devel) $(vopt_if dbus dbus-glib-devel)
  $(vopt_if pulseaudio pulseaudio-devel) $(vopt_if xscreensaver libXScrnSaver-devel)
  $(vopt_if sndio sndio-devel) $(vopt_if jack jack-devel)"
@@ -68,8 +69,8 @@ do_build() {
 	export AS="${CC}"
 	# Target-specific build: Intel Skylake (i3-6100U / Core i3-6100-class).
 	# This package is intentionally not portable to pre-Skylake x86_64 CPUs.
-	export CFLAGS="${CFLAGS:--O2} -march=skylake -mtune=skylake"
-	export CXXFLAGS="${CXXFLAGS:--O2} -march=skylake -mtune=skylake"
+	export CFLAGS="${CFLAGS:-} -O2 -march=skylake -mtune=skylake"
+	export CXXFLAGS="${CXXFLAGS:-} -O2 -march=skylake -mtune=skylake"
 	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake"
 	export RUSTC_OPT_LEVEL=2
 	export RUSTC_WRAPPER=/usr/bin/sccache
@@ -168,7 +169,7 @@ do_build() {
 	ac_add_options $(vopt_enable jack)
 	ac_add_options $(vopt_enable pulseaudio)
 	ac_add_options $(vopt_enable sndio)
-	ac_add_options --enable-default-toolkit=cairo-gtk3-wayland-only
+	ac_add_options --enable-default-toolkit=cairo-gtk3-wayland
 
 	mk_add_options MOZ_OBJDIR="${wrksrc}/obj"
 
@@ -209,7 +210,6 @@ do_build() {
 
 
 	if [ "$build_option_pgo" ]; then
-		pgo_cache_dir=/host/pgo-cache
 		pgo_profile_path="$pgo_cache_dir/merged.profdata"
 		pgo_jarlog_path="$pgo_cache_dir/jarlog"
 		cp mozconfig{,.orig}
