@@ -210,8 +210,8 @@ do_build() {
 
 
 	if [ "$build_option_pgo" ]; then
-		pgo_profile_path="$pgo_cache_dir/merged.profdata"
-		pgo_jarlog_path="$pgo_cache_dir/jarlog"
+		pgo_profile_path=/host/pgo-cache/merged.profdata
+		pgo_jarlog_path=/host/pgo-cache/jarlog
 		cp mozconfig{,.orig}
 		if [ -s "$pgo_profile_path" ] && [ -s "$pgo_jarlog_path" ]; then
 			echo "Using cached LibreWolf PGO profile."
@@ -237,7 +237,7 @@ do_build() {
 
 			test -s merged.profdata
 			test -s jarlog
-			mkdir -p "$pgo_cache_dir"
+			mkdir -p /host/pgo-cache
 			cp merged.profdata "$pgo_profile_path"
 			cp jarlog "$pgo_jarlog_path"
 		fi
