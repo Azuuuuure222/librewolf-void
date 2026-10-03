@@ -25,7 +25,7 @@ jobs:
       XBPS_TARGET_ARCH: x86_64-musl
       SCCACHE_GHA_ENABLED: "on"
       SCCACHE_GHA_VERSION: "librewolf-x86_64-musl-skylake-v1"
-      LIBREWOLF_PGO_CACHE_VERSION: "v2"
+      LIBREWOLF_PGO_CACHE_VERSION: "v3"
     steps:
       - name: free space
         run: |
