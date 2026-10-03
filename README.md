@@ -230,7 +230,7 @@ GitHub runner
 
 This matters because the package itself is built inside the xbps chroot while Weston is installed and run by the outer GitHub Actions environment.
 
-## Manual PGO fallback
+## CI PGO workload
 
 When building manually outside CI, the package retains an X11/Xvfb fallback so PGO can still be generated when no Wayland compositor is available.
 
