@@ -20,12 +20,12 @@ permissions:
 jobs:
   build:
     runs-on: ${{ vars.LIBREWOLF_RUNNER || 'ubuntu-24.04' }}
-    timeout-minutes: 340
+    timeout-minutes: 360
     env:
       XBPS_TARGET_ARCH: x86_64-musl
       SCCACHE_GHA_ENABLED: "on"
       SCCACHE_GHA_VERSION: "librewolf-x86_64-musl-skylake-v1"
-      LIBREWOLF_PGO_CACHE_VERSION: "v1"
+      LIBREWOLF_PGO_CACHE_VERSION: "v2"
     steps:
       - name: free space
         run: |
@@ -86,18 +86,6 @@ jobs:
           # Bump LIBREWOLF_PGO_CACHE_VERSION when profile-relevant build/workload inputs change.
           key: librewolf-pgo-${{ env.LIBREWOLF_PGO_CACHE_VERSION }}-${{ steps.meta.outputs.sha256 }}-${{ hashFiles('srcpkgs/librewolf/patches/**') }}
 
-      - name: check LibreWolf PGO profile
-        id: pgo-state
-        run: |
-          set -euo pipefail
-          profile_dir=void-packages/hostdir/pgo-cache
-          if [ -s "$profile_dir/merged.profdata" ] && [ -s "$profile_dir/jarlog" ]; then
-            echo "hit=true" >> "$GITHUB_OUTPUT"
-            echo "Reusable LibreWolf PGO profile found."
-          else
-            echo "hit=false" >> "$GITHUB_OUTPUT"
-            echo "No complete LibreWolf PGO profile found."
-          fi
       - name: prepare xbps-static
         run: |
           set -euo pipefail
@@ -110,7 +98,7 @@ jobs:
           rm -f xbps-static-latest.x86_64-musl.tar.xz
 
       - name: install PGO Wayland compositor
-        if: ${{ steps.pgo-state.outputs.hit != 'true' }}
+        if: ${{ steps.pgo-cache.outputs.cache-hit != 'true' }}
         run: |
           set -euo pipefail
           if ! command -v weston >/dev/null 2>&1; then
@@ -222,10 +210,10 @@ jobs:
           key: librewolf-source-v4-${{ steps.meta.outputs.sha256 }}
 
       - name: build package
-        timeout-minutes: 330
+        timeout-minutes: 350
         working-directory: void-packages
         env:
-          PGO_CACHE_HIT: ${{ steps.pgo-state.outputs.hit }}
+          PGO_CACHE_HIT: ${{ steps.pgo-cache.outputs.cache-hit }}
         run: |
           set -euo pipefail
           export PATH="/opt/xbps/usr/bin/:$PATH"
@@ -263,7 +251,7 @@ jobs:
           ./xbps-src -A "$XBPS_TARGET_ARCH" pkg -j"$(nproc)" librewolf
 
       - name: save LibreWolf PGO profile
-        if: ${{ always() && steps.pgo-state.outputs.hit != 'true' && hashFiles('void-packages/hostdir/pgo-cache/merged.profdata', 'void-packages/hostdir/pgo-cache/jarlog') != '' }}
+        if: ${{ always() && steps.pgo-cache.outputs.cache-hit != 'true' && hashFiles('void-packages/hostdir/pgo-cache/merged.profdata', 'void-packages/hostdir/pgo-cache/jarlog') != '' }}
         uses: actions/cache/save@v6
         with:
           path: void-packages/hostdir/pgo-cache
