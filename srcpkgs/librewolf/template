@@ -68,8 +68,8 @@ do_build() {
 	export AS="${CC}"
 	# Target-specific build: Intel Skylake (i3-6100U / Core i3-6100-class).
 	# This package is intentionally not portable to pre-Skylake x86_64 CPUs.
-	export CFLAGS="${CFLAGS:-} -O2 -march=skylake -mtune=skylake"
-	export CXXFLAGS="${CXXFLAGS:-} -O2 -march=skylake -mtune=skylake"
+	export CFLAGS="${CFLAGS:--O2} -march=skylake -mtune=skylake"
+	export CXXFLAGS="${CXXFLAGS:--O2} -march=skylake -mtune=skylake"
 	export RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=skylake"
 	export RUSTC_OPT_LEVEL=2
 	export RUSTC_WRAPPER=/usr/bin/sccache
@@ -209,6 +209,7 @@ do_build() {
 
 
 	if [ "$build_option_pgo" ]; then
+		pgo_cache_dir=/host/pgo-cache
 		pgo_profile_path="$pgo_cache_dir/merged.profdata"
 		pgo_jarlog_path="$pgo_cache_dir/jarlog"
 		cp mozconfig{,.orig}

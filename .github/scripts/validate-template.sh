@@ -48,13 +48,25 @@ case "$1" in
 esac
 
 expected_template_distfile='${pkgname}-${version}-${_rev}.source.tar.gz'
+expected_distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
+expected_source_url="https://librewolf.dev/api/packages/librewolf/generic/librewolf-source/\${version}-\${_rev}/\${pkgname}-\${version}-\${_rev}.source.tar.gz"
+[ "$1" = "$expected_source_url" ] || {
+  echo "distfile URL template mismatch: expected $expected_source_url, got $1" >&2
+  exit 1
+}
+
 actual_distfile="${1##*/}"
 [ "$actual_distfile" = "$expected_template_distfile" ] || {
   echo "distfile basename mismatch: expected $expected_template_distfile, got $actual_distfile" >&2
   exit 1
 }
 
-distfile="${pkgname}-${version}-${_rev}.source.tar.gz"
+case "$expected_distfile" in
+  librewolf-[0-9.]*-[0-9]*.source.tar.gz) ;;
+  *) echo "resolved LibreWolf distfile name is invalid: $expected_distfile" >&2; exit 1 ;;
+esac
+
+distfile="$expected_distfile"
 release_tag="${version}-${_rev}"
 
 if [ -n "$GITHUB_OUTPUT" ]; then

@@ -232,9 +232,7 @@ This matters because the package itself is built inside the xbps chroot while We
 
 ## Manual PGO fallback
 
-When building manually outside CI, the package retains an X11/Xvfb fallback so PGO can still be generated when no Wayland compositor is available.
-
-CI does not silently fall back to X11 when its Wayland compositor is expected.
+CI PGO is deliberately Wayland-only. The package uses Firefox's `cairo-gtk3-wayland-only` toolkit and requires the headless Weston compositor for the CI PGO workload.
 
 ---
 
@@ -429,7 +427,7 @@ but supports a repository variable override:
 LIBREWOLF_RUNNER
 ```
 
-The job has a large time budget because LibreWolf + PGO + LTO is intentionally expensive.
+The GitHub job is allowed up to 360 minutes; the package-build step is capped at 350 minutes so a slow first-time PGO run still has headroom while leaving time for artifact handling.
 
 The concurrency policy cancels obsolete builds on the same branch. This prevents an old multi-hour build from continuing after a newer source or recipe change has already superseded it.
 
@@ -539,12 +537,13 @@ Default build options are:
 alsa
 dbus
 pulseaudio
-wayland
 lto
 pgo
 clang
 wasi
 ```
+
+Wayland is hard-coded rather than exposed as a selectable packaging option because the target device runs Wayland and the build uses `cairo-gtk3-wayland-only`.
 
 The template also exposes:
 
